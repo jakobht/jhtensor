@@ -109,45 +109,43 @@ fn get_metal_context() -> &'static MetalContext {
     static CONTEXT: OnceLock<MetalContext> = OnceLock::new();
 
     CONTEXT.get_or_init(|| {
-        unsafe {
-            let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
+        let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
 
-            let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let lib_path = format!("{}/add_func.metallib", manifest_dir);
-            let lib_path_ns = NSString::from_str(&lib_path);
-            let lib_url = NSURL::fileURLWithPath(&lib_path_ns);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let lib_path = format!("{}/add_func.metallib", manifest_dir);
+        let lib_path_ns = NSString::from_str(&lib_path);
+        let lib_url = NSURL::fileURLWithPath(&lib_path_ns);
 
-            let library = device
-                .newLibraryWithURL_error(&lib_url)
-                .expect("Failed to load add_func.metallib");
+        let library = device
+            .newLibraryWithURL_error(&lib_url)
+            .expect("Failed to load add_func.metallib");
 
-            // Extract and compile the Float32 entry point
-            let f32_fn = library
-                .newFunctionWithName(&NSString::from_str("add_arrays_f32"))
-                .unwrap();
-            let add_f32_pipeline = device.newComputePipelineStateWithFunction_error(&f32_fn).unwrap();
+        // Extract and compile the Float32 entry point
+        let f32_fn = library
+            .newFunctionWithName(&NSString::from_str("add_arrays_f32"))
+            .unwrap();
+        let add_f32_pipeline = device.newComputePipelineStateWithFunction_error(&f32_fn).unwrap();
 
-            // Extract and compile the Int32 entry point
-            let i32_fn = library
-                .newFunctionWithName(&NSString::from_str("add_arrays_i32"))
-                .unwrap();
-            let add_i32_pipeline = device.newComputePipelineStateWithFunction_error(&i32_fn).unwrap();
+        // Extract and compile the Int32 entry point
+        let i32_fn = library
+            .newFunctionWithName(&NSString::from_str("add_arrays_i32"))
+            .unwrap();
+        let add_i32_pipeline = device.newComputePipelineStateWithFunction_error(&i32_fn).unwrap();
 
-            // Extract and compile the Float16 entry point
-            let i16_fn = library
-                .newFunctionWithName(&NSString::from_str("add_arrays_i16"))
-                .unwrap();
-            let add_i16_pipeline = device.newComputePipelineStateWithFunction_error(&i16_fn).unwrap();
+        // Extract and compile the Float16 entry point
+        let i16_fn = library
+            .newFunctionWithName(&NSString::from_str("add_arrays_i16"))
+            .unwrap();
+        let add_i16_pipeline = device.newComputePipelineStateWithFunction_error(&i16_fn).unwrap();
 
-            let command_queue = device.newCommandQueue().unwrap();
+        let command_queue = device.newCommandQueue().unwrap();
 
-            MetalContext {
-                device,
-                command_queue,
-                add_f32_pipeline,
-                add_i32_pipeline,
-                add_i16_pipeline,
-            }
+        MetalContext {
+            device,
+            command_queue,
+            add_f32_pipeline,
+            add_i32_pipeline,
+            add_i16_pipeline,
         }
     })
 }
