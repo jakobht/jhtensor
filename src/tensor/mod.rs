@@ -10,7 +10,6 @@ pub use tensor::Tensor;
 pub trait Backend: Sized {
     type Storage;
 
-    /// The backend takes the raw storage, plus the shape and dtype metadata
     fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage;
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage;
