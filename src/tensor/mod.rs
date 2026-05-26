@@ -7,6 +7,7 @@ pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
 pub use tensor::Tensor;
 
+// Backend trait for all supported backends
 pub trait Backend: Sized {
     type Storage;
 
