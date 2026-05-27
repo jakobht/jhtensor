@@ -40,3 +40,20 @@ impl Backend for CPUBackend {
         unsafe { std::slice::from_raw_parts(storage.as_ptr().cast::<T>(), num_elements).to_vec() }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tensor::{Backend, CPUBackend, DType};
+
+    #[test]
+    fn test_add_arrays() {
+        let a = CPUBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
+        let b = CPUBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
+
+        let result_bytes = CPUBackend::add_arrays(&a, &b, &[5], DType::Float32);
+
+        let result_vec = CPUBackend::to_vec::<f32>(&result_bytes, 5);
+
+        assert_eq!(result_vec, vec![2.0, 4.0, 6.0, 8.0, 10.0]);
+    }
+}
