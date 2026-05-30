@@ -1,30 +1,5 @@
 use crate::tensor::{Backend, DType, TensorDType};
-
-#[derive(Debug, PartialEq)]
-pub enum TensorError {
-    ShapeMismatch { expected: Vec<usize>, got: Vec<usize> },
-    TypeMismatch { expected: DType, got: DType },
-    DataLengthMismatch { expected_len: usize, got_len: usize },
-}
-
-impl std::fmt::Display for TensorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TensorError::ShapeMismatch { expected, got } => {
-                write!(f, "Tensor shapes must match for addition: {:?} != {:?}", expected, got)
-            }
-            TensorError::TypeMismatch { expected, got } => {
-                write!(f, "Tensor dtypes must match: {:?} != {:?}", expected, got)
-            }
-            TensorError::DataLengthMismatch { expected_len, got_len } => {
-                write!(f, "Data length must match shape: {} != {}", expected_len, got_len)
-            }
-        }
-    }
-}
-
-impl std::error::Error for TensorError {}
-
+use crate::tensor::tensor_error::TensorError;
 pub struct Tensor<B: Backend> {
     data: B::Storage,
     shape: Vec<usize>,
@@ -225,6 +200,54 @@ mod tests {
             test_add_inplace_for!(MetalBackend, f32);
             test_add_inplace_for!(MetalBackend, i32);
             test_add_inplace_for!(MetalBackend, i16);
+        }
+
+        mod cpu {
+            use super::*;
+
+            test_add_inplace_for!(CPUBackend, f32);
+            test_add_inplace_for!(CPUBackend, i32);
+            test_add_inplace_for!(CPUBackend, i16);
+        }
+
+        #[test]
+        fn test_tensor_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
+
+            let result = a.add_inplace(&b, &mut dest);
+            assert_eq!(result.unwrap_err(), TensorError::ShapeMismatch { expected: vec![5], got: vec![4] });
+        }
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
+
+            let result = a.add_inplace(&b, &mut dest);
+            assert_eq!(result.unwrap_err(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
+        }
+
+        #[test]
+        fn test_dest_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], vec![4]).unwrap();
+
+            let result = a.add_inplace(&b, &mut dest);
+            assert_eq!(result.unwrap_err(), TensorError::ShapeMismatch { expected: vec![5], got: vec![4] });
+        }
+
+        #[test]
+        fn test_dest_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], vec![5]).unwrap();
+
+            let result = a.add_inplace(&b, &mut dest);
+            assert_eq!(result.unwrap_err(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
         }
     }
 }

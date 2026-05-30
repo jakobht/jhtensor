@@ -2,10 +2,12 @@ mod cpu_backend;
 mod dtype;
 mod metal_backend;
 mod tensor;
+mod tensor_error;
 pub use cpu_backend::CPUBackend;
 pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
-pub use tensor::{Tensor, TensorError};
+pub use tensor::Tensor;
+pub use tensor_error::TensorError;
 
 pub trait Backend: Sized {
     type Storage;
