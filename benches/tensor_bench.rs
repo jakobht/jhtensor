@@ -15,7 +15,7 @@ fn bench_tensor_add(c: &mut Criterion) {
     let metal_a = Tensor::<MetalBackend>::new(&data, shape.clone()).unwrap();
     let metal_b = Tensor::<MetalBackend>::new(&data, shape.clone()).unwrap();
 
-    let mut group = c.benchmark_group("Add Tensors (1M elements)");
+    let mut group = c.benchmark_group("Add Tensors (1B elements)");
 
     group.bench_function("CPU Backend", |b| {
         b.iter(|| {
