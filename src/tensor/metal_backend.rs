@@ -149,3 +149,20 @@ fn get_metal_context() -> &'static MetalContext {
         }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tensor::{Backend, MetalBackend, DType};
+
+    #[test]
+    fn test_add_arrays() {
+        let a = MetalBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
+        let b = MetalBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
+
+        let result_bytes = MetalBackend::add_arrays(&a, &b, &[5], DType::Float32);
+
+        let result_vec = MetalBackend::to_vec::<f32>(&result_bytes, 5);
+
+        assert_eq!(result_vec, vec![2.0, 4.0, 6.0, 8.0, 10.0]);
+    }
+}
