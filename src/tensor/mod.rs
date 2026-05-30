@@ -5,7 +5,7 @@ mod tensor;
 pub use cpu_backend::CPUBackend;
 pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
-pub use tensor::Tensor;
+pub use tensor::{Tensor, TensorError};
 
 pub trait Backend: Sized {
     type Storage;

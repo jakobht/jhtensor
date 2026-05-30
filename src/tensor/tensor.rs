@@ -1,5 +1,24 @@
 use crate::tensor::{Backend, DType, TensorDType};
 
+#[derive(Debug, PartialEq)]
+pub enum TensorError {
+    ShapeMismatch { expected: Vec<usize>, got: Vec<usize> },
+    TypeMismatch { expected: DType, got: DType },
+    DataLengthMismatch { expected_len: usize, got_len: usize },
+}
+
+impl std::fmt::Display for TensorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TensorError::ShapeMismatch { expected, got } => write!(f, "Tensor shapes must match for addition: {:?} != {:?}", expected, got),
+            TensorError::TypeMismatch { expected, got } => write!(f, "Tensor dtypes must match: {:?} != {:?}", expected, got),
+            TensorError::DataLengthMismatch { expected_len, got_len } => write!(f, "Data length must match shape: {} != {}", expected_len, got_len),
+        }
+    }
+}
+
+impl std::error::Error for TensorError {}
+
 pub struct Tensor<B: Backend> {
     data: B::Storage,
     shape: Vec<usize>,
@@ -7,12 +26,12 @@ pub struct Tensor<B: Backend> {
 }
 
 impl<B: Backend> Tensor<B> {
-    pub fn add(&self, other: &Self) -> Result<Self, String> {
+    pub fn add(&self, other: &Self) -> Result<Self, TensorError> {
         if self.shape != other.shape {
-            return Err(format!("Tensor shapes must match for addition: {:?} != {:?}", self.shape, other.shape));
+            return Err(TensorError::ShapeMismatch { expected: self.shape.clone(), got: other.shape.clone() });
         }
         if self.dtype != other.dtype {
-            return Err(format!("Tensor dtypes must match: {:?} != {:?}", self.dtype, other.dtype));
+            return Err(TensorError::TypeMismatch { expected: self.dtype, got: other.dtype });
         }
 
         let result_storage = B::add_arrays(&self.data, &other.data, &self.shape, self.dtype);
@@ -23,9 +42,9 @@ impl<B: Backend> Tensor<B> {
         })
     }
 
-    pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, String> {
+    pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
         if data.len() != shape.iter().product() {
-            return Err(format!("Data length must match shape: {} != {}", data.len(), shape.iter().product::<usize>()));
+            return Err(TensorError::DataLengthMismatch { expected_len: shape.iter().product::<usize>(), got_len: data.len() });
         }
 
         Ok(Tensor {
@@ -35,9 +54,9 @@ impl<B: Backend> Tensor<B> {
         })
     }
 
-    pub fn to_vec<T: TensorDType>(&self) -> Result<Vec<T>, String> {
+    pub fn to_vec<T: TensorDType>(&self) -> Result<Vec<T>, TensorError> {
         if self.dtype != T::dtype() {
-            return Err(format!("Tensor dtypes must match: {:?} != {:?}", self.dtype, T::dtype()));
+            return Err(TensorError::TypeMismatch { expected: self.dtype, got: T::dtype() });
         }
         Ok(B::to_vec::<T>(&self.data, self.shape.iter().product()))
     }
@@ -45,14 +64,14 @@ impl<B: Backend> Tensor<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{CPUBackend, MetalBackend, Tensor};
+    use crate::tensor::{CPUBackend, DType, MetalBackend, Tensor, TensorError};
 
 
     #[test]
     fn test_tensor_new_shape_mismatch() {
         let result = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![4]);
         assert!(result.is_err());
-        assert_eq!(result.err().unwrap(), "Data length must match shape: 5 != 4");
+        assert_eq!(result.err().unwrap(), TensorError::DataLengthMismatch { expected_len: 4, got_len: 5 });
     }
 
     #[test]
@@ -60,7 +79,7 @@ mod tests {
         let tensor = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
         let result = tensor.to_vec::<i32>();
         assert!(result.is_err());
-        assert_eq!(result.err().unwrap(), "Tensor dtypes must match: Float32 != Int32");
+        assert_eq!(result.err().unwrap(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
     }
 
     mod add {
@@ -104,7 +123,7 @@ mod tests {
 
             let result = a.add(&b);
             assert!(result.is_err());
-            assert_eq!(result.err().unwrap(), "Tensor shapes must match for addition: [5] != [4]");
+            assert_eq!(result.err().unwrap(), TensorError::ShapeMismatch { expected: vec![5], got: vec![4] });
         }
     }
 }
