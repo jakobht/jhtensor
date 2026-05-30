@@ -111,14 +111,11 @@ fn get_metal_context() -> &'static MetalContext {
     CONTEXT.get_or_init(|| {
         let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
 
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let lib_path = format!("{}/add_func.metallib", manifest_dir);
-        let lib_path_ns = NSString::from_str(&lib_path);
-        let lib_url = NSURL::fileURLWithPath(&lib_path_ns);
+        let source = NSString::from_str(include_str!("../../src/shaders/add_func.metal"));
 
         let library = device
-            .newLibraryWithURL_error(&lib_url)
-            .expect("Failed to load add_func.metallib");
+            .newLibraryWithSource_options_error(&source, None)
+            .expect("Failed to compile Metal shader source at runtime");
 
         // Extract and compile the Float32 entry point
         let f32_fn = library
