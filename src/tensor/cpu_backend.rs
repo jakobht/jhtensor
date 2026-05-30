@@ -43,17 +43,31 @@ impl Backend for CPUBackend {
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{Backend, CPUBackend, DType};
+    use crate::tensor::{Backend, DType, CPUBackend};
 
-    #[test]
-    fn test_add_arrays() {
-        let a = CPUBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
-        let b = CPUBackend::from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0]);
+    mod add_arrays {
+        use super::*;
 
-        let result_bytes = CPUBackend::add_arrays(&a, &b, &[5], DType::Float32);
+        macro_rules! test_type {
+            ($t:ident, $dtype:expr) => {
+                #[test]
+                fn $t() {
+                    let a = CPUBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
+                    let b = CPUBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
 
-        let result_vec = CPUBackend::to_vec::<f32>(&result_bytes, 5);
+                    let result_bytes = CPUBackend::add_arrays(&a, &b, &[5], $dtype);
 
-        assert_eq!(result_vec, vec![2.0, 4.0, 6.0, 8.0, 10.0]);
+                    let result_vec = CPUBackend::to_vec::<$t>(&result_bytes, 5);
+
+                    assert_eq!(
+                        result_vec,
+                        vec![2 as $t, 4 as $t, 6 as $t, 8 as $t, 10 as $t]
+                    );
+                }
+            };
+        }
+        test_type!(f32, DType::Float32);
+        test_type!(i32, DType::Int32);
+        test_type!(i16, DType::Int16);
     }
 }
