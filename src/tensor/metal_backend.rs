@@ -9,20 +9,29 @@ use crate::tensor::{Backend, DType};
 
 pub struct MetalBackend;
 
+impl MetalBackend {
+    fn new_empty(num_elements: usize, dtype: DType) -> <Self as Backend>::Storage {
+        let ctx = get_metal_context();
+        let buffer_size = num_elements * dtype.byte_size();
+        ctx.device
+            .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
+            .unwrap()
+    }
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
-    fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
+    fn add_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: &[usize],
+        dtype: DType,
+    ) {
         unsafe {
             let ctx = get_metal_context();
-
             let array_length = shape.iter().product();
-            let buffer_size = array_length * dtype.byte_size();
-
-            let buffer_result = ctx
-                .device
-                .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-                .unwrap();
 
             let command_buffer = ctx.command_queue.commandBuffer().unwrap();
             let compute_encoder = command_buffer.computeCommandEncoder().unwrap();
@@ -36,10 +45,10 @@ impl Backend for MetalBackend {
 
             compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-            compute_encoder.setBuffer_offset_atIndex(Some(&buffer_result), 0, 2);
+            compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
             let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
-            let grid_with = if thread_execution_width > array_length {
+            let grid_width = if thread_execution_width > array_length {
                 array_length
             } else {
                 thread_execution_width
@@ -51,7 +60,7 @@ impl Backend for MetalBackend {
                 depth: 1,
             };
             let threadgroup_size = MTLSize {
-                width: grid_with,
+                width: grid_width,
                 height: 1,
                 depth: 1,
             };
@@ -61,9 +70,15 @@ impl Backend for MetalBackend {
 
             command_buffer.commit();
             command_buffer.waitUntilCompleted();
-
-            buffer_result
         }
+    }
+
+    fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
+        let array_length = shape.iter().product();
+        let mut dest = Self::new_empty(array_length, dtype);
+        Self::add_arrays_inplace(a, b, &mut dest, shape, dtype);
+
+        dest
     }
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {
@@ -111,14 +126,11 @@ fn get_metal_context() -> &'static MetalContext {
     CONTEXT.get_or_init(|| {
         let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
 
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let lib_path = format!("{}/add_func.metallib", manifest_dir);
-        let lib_path_ns = NSString::from_str(&lib_path);
-        let lib_url = NSURL::fileURLWithPath(&lib_path_ns);
+        let source = NSString::from_str(include_str!("../../src/shaders/add_func.metal"));
 
         let library = device
-            .newLibraryWithURL_error(&lib_url)
-            .expect("Failed to load add_func.metallib");
+            .newLibraryWithSource_options_error(&source, None)
+            .expect("Failed to compile Metal shader source at runtime");
 
         // Extract and compile the Float32 entry point
         let f32_fn = library
@@ -148,4 +160,56 @@ fn get_metal_context() -> &'static MetalContext {
             add_i16_pipeline,
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tensor::{Backend, DType, MetalBackend};
+
+    mod add_arrays {
+        use super::*;
+
+        macro_rules! test_type {
+            ($t:ident, $dtype:expr) => {
+                mod $t {
+                    use super::*;
+
+                    #[test]
+                    fn small_array() {
+                        let a = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
+                        let b = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
+
+                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[5], $dtype);
+
+                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, 5);
+
+                        assert_eq!(
+                            result_vec,
+                            vec![2 as $t, 4 as $t, 6 as $t, 8 as $t, 10 as $t]
+                        );
+                    }
+
+                    #[test]
+                    fn large_array_branch_coverage() {
+                        let size = 2048;
+                        let data = vec![1 as $t; size];
+
+                        let a = MetalBackend::from_slice(&data);
+                        let b = MetalBackend::from_slice(&data);
+
+                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[size], $dtype);
+                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, size);
+
+                        assert_eq!(result_vec[0], 2 as $t);
+                        assert_eq!(result_vec[size - 1], 2 as $t);
+                        assert_eq!(result_vec.len(), size);
+                    }
+                }
+            };
+        }
+
+        test_type!(f32, DType::Float32);
+        test_type!(i32, DType::Int32);
+        test_type!(i16, DType::Int16);
+    }
 }
