@@ -169,6 +169,16 @@ mod tests {
                 }
             );
         }
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], vec![5]).unwrap();
+
+            let result = a.add(&b);
+            assert!(result.is_err());
+            assert_eq!(result.err().unwrap(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
+        }
     }
 
     mod add_inplace {

@@ -171,22 +171,43 @@ mod tests {
 
         macro_rules! test_type {
             ($t:ident, $dtype:expr) => {
-                #[test]
-                fn $t() {
-                    let a = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
-                    let b = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
+                mod $t {
+                    use super::*;
 
-                    let result_bytes = MetalBackend::add_arrays(&a, &b, &[5], $dtype);
+                    #[test]
+                    fn small_array() {
+                        let a = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
+                        let b = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
 
-                    let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, 5);
+                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[5], $dtype);
 
-                    assert_eq!(
-                        result_vec,
-                        vec![2 as $t, 4 as $t, 6 as $t, 8 as $t, 10 as $t]
-                    );
+                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, 5);
+
+                        assert_eq!(
+                            result_vec,
+                            vec![2 as $t, 4 as $t, 6 as $t, 8 as $t, 10 as $t]
+                        );
+                    }
+
+                    #[test]
+                    fn large_array_branch_coverage() {
+                        let size = 2048;
+                        let data = vec![1 as $t; size];
+
+                        let a = MetalBackend::from_slice(&data);
+                        let b = MetalBackend::from_slice(&data);
+
+                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[size], $dtype);
+                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, size);
+
+                        assert_eq!(result_vec[0], 2 as $t);
+                        assert_eq!(result_vec[size - 1], 2 as $t);
+                        assert_eq!(result_vec.len(), size);
+                    }
                 }
             };
         }
+
         test_type!(f32, DType::Float32);
         test_type!(i32, DType::Int32);
         test_type!(i16, DType::Int16);
