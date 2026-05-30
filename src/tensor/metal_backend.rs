@@ -9,20 +9,29 @@ use crate::tensor::{Backend, DType};
 
 pub struct MetalBackend;
 
+impl MetalBackend {
+    fn new_empty(num_elements: usize, dtype: DType) -> <Self as Backend>::Storage {
+        let ctx = get_metal_context();
+        let buffer_size = num_elements * dtype.byte_size();
+        ctx.device
+            .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
+            .unwrap()
+    }
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
-    fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
+    fn add_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: &[usize],
+        dtype: DType,
+    ) {
         unsafe {
             let ctx = get_metal_context();
-
             let array_length = shape.iter().product();
-            let buffer_size = array_length * dtype.byte_size();
-
-            let buffer_result = ctx
-                .device
-                .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-                .unwrap();
 
             let command_buffer = ctx.command_queue.commandBuffer().unwrap();
             let compute_encoder = command_buffer.computeCommandEncoder().unwrap();
@@ -36,10 +45,10 @@ impl Backend for MetalBackend {
 
             compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-            compute_encoder.setBuffer_offset_atIndex(Some(&buffer_result), 0, 2);
+            compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
             let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
-            let grid_with = if thread_execution_width > array_length {
+            let grid_width = if thread_execution_width > array_length {
                 array_length
             } else {
                 thread_execution_width
@@ -51,7 +60,7 @@ impl Backend for MetalBackend {
                 depth: 1,
             };
             let threadgroup_size = MTLSize {
-                width: grid_with,
+                width: grid_width,
                 height: 1,
                 depth: 1,
             };
@@ -61,9 +70,15 @@ impl Backend for MetalBackend {
 
             command_buffer.commit();
             command_buffer.waitUntilCompleted();
-
-            buffer_result
         }
+    }
+
+    fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
+        let array_length = shape.iter().product();
+        let mut dest = Self::new_empty(array_length, dtype);
+        Self::add_arrays_inplace(a, b, &mut dest, shape, dtype);
+
+        dest
     }
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {

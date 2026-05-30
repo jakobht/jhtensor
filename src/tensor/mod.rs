@@ -12,6 +12,14 @@ pub trait Backend: Sized {
 
     fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage;
 
+    fn add_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: &[usize],
+        dtype: DType,
+    );
+
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage;
     fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Vec<T>;
 }

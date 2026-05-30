@@ -2,31 +2,20 @@ use crate::tensor::{Backend, DType};
 
 pub struct CPUBackend;
 
+impl CPUBackend {
+    fn new_empty(num_elements: usize, dtype: DType) -> <Self as Backend>::Storage {
+        vec![0; num_elements * dtype.byte_size()]
+    }
+}
+
 impl Backend for CPUBackend {
     type Storage = Vec<u8>;
 
     fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
         let array_length = shape.iter().product();
-
-        macro_rules! compute_add {
-            ($t:ty) => {
-                unsafe {
-                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), array_length);
-                    let b_slice = std::slice::from_raw_parts(b.as_ptr().cast::<$t>(), array_length);
-
-                    let result: Vec<$t> = a_slice.iter().zip(b_slice.iter()).map(|(&x, &y)| x + y).collect();
-
-                    let total_bytes = array_length * std::mem::size_of::<$t>();
-                    std::slice::from_raw_parts(result.as_ptr().cast::<u8>(), total_bytes).to_vec()
-                }
-            };
-        }
-
-        match dtype {
-            DType::Float32 => compute_add!(f32),
-            DType::Int32 => compute_add!(i32),
-            DType::Int16 => compute_add!(i16),
-        }
+        let mut dest = Self::new_empty(array_length, dtype);
+        Self::add_arrays_inplace(a, b, &mut dest, shape, dtype);
+        dest
     }
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {
@@ -39,11 +28,41 @@ impl Backend for CPUBackend {
     fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Vec<T> {
         unsafe { std::slice::from_raw_parts(storage.as_ptr().cast::<T>(), num_elements).to_vec() }
     }
+
+    fn add_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: &[usize],
+        dtype: DType,
+    ) {
+        let array_length = shape.iter().product();
+
+        macro_rules! compute_add {
+            ($t:ty) => {
+                unsafe {
+                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), array_length);
+                    let b_slice = std::slice::from_raw_parts(b.as_ptr().cast::<$t>(), array_length);
+                    let dest_slice = std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), array_length);
+
+                    for i in 0..array_length {
+                        dest_slice[i] = a_slice[i] + b_slice[i];
+                    }
+                }
+            };
+        }
+
+        match dtype {
+            DType::Float32 => compute_add!(f32),
+            DType::Int32 => compute_add!(i32),
+            DType::Int16 => compute_add!(i16),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{Backend, DType, CPUBackend};
+    use crate::tensor::{Backend, CPUBackend, DType};
 
     mod add_arrays {
         use super::*;
