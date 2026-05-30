@@ -19,7 +19,10 @@ jobs:
     - name: Set up Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
-        components: llvm-tools-preview
+        components: llvm-tools-preview, rustfmt
+
+    - name: Check Formatting
+      run: cargo fmt --all -- --check
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
@@ -31,7 +34,7 @@ jobs:
       run: |
         # Generate the standard lcov.info file natively
         cargo llvm-cov --workspace --lcov --output-path lcov.info
-        
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
