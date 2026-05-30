@@ -28,7 +28,9 @@ fn bench_tensor_add(c: &mut Criterion) {
 
     group.bench_function("Metal Backend Add Inplace", |b| {
         b.iter(|| {
-            metal_a.add_inplace(black_box(&metal_b), black_box(&mut metal_dest)).unwrap();
+            metal_a
+                .add_inplace(black_box(&metal_b), black_box(&mut metal_dest))
+                .unwrap();
         })
     });
 
