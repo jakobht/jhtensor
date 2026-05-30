@@ -38,7 +38,28 @@ mod tests {
             }
         };
     }
-    test_display!(test_shape_mismatch, TensorError::ShapeMismatch { expected: vec![1, 2, 3], got: vec![4, 5, 6] }, "Tensor shapes must match for addition: [1, 2, 3] != [4, 5, 6]");
-    test_display!(test_type_mismatch, TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 }, "Tensor dtypes must match: Float32 != Int32");
-    test_display!(test_data_length_mismatch, TensorError::DataLengthMismatch { expected_len: 10, got_len: 20 }, "Data length must match shape: 10 != 20");
+    test_display!(
+        test_shape_mismatch,
+        TensorError::ShapeMismatch {
+            expected: vec![1, 2, 3],
+            got: vec![4, 5, 6]
+        },
+        "Tensor shapes must match for addition: [1, 2, 3] != [4, 5, 6]"
+    );
+    test_display!(
+        test_type_mismatch,
+        TensorError::TypeMismatch {
+            expected: DType::Float32,
+            got: DType::Int32
+        },
+        "Tensor dtypes must match: Float32 != Int32"
+    );
+    test_display!(
+        test_data_length_mismatch,
+        TensorError::DataLengthMismatch {
+            expected_len: 10,
+            got_len: 20
+        },
+        "Data length must match shape: 10 != 20"
+    );
 }

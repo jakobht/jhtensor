@@ -1,5 +1,5 @@
-use crate::tensor::{Backend, DType, TensorDType};
 use crate::tensor::tensor_error::TensorError;
+use crate::tensor::{Backend, DType, TensorDType};
 pub struct Tensor<B: Backend> {
     data: B::Storage,
     shape: Vec<usize>,
@@ -177,7 +177,13 @@ mod tests {
 
             let result = a.add(&b);
             assert!(result.is_err());
-            assert_eq!(result.err().unwrap(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
         }
     }
 
@@ -227,7 +233,13 @@ mod tests {
             let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(result.unwrap_err(), TensorError::ShapeMismatch { expected: vec![5], got: vec![4] });
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::ShapeMismatch {
+                    expected: vec![5],
+                    got: vec![4]
+                }
+            );
         }
 
         #[test]
@@ -237,7 +249,13 @@ mod tests {
             let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(result.unwrap_err(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
         }
 
         #[test]
@@ -247,7 +265,13 @@ mod tests {
             let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], vec![4]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(result.unwrap_err(), TensorError::ShapeMismatch { expected: vec![5], got: vec![4] });
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::ShapeMismatch {
+                    expected: vec![5],
+                    got: vec![4]
+                }
+            );
         }
 
         #[test]
@@ -257,7 +281,13 @@ mod tests {
             let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], vec![5]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(result.unwrap_err(), TensorError::TypeMismatch { expected: DType::Float32, got: DType::Int32 });
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
         }
     }
 }
