@@ -20,15 +20,27 @@ fn bench_tensor_add(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("Add Tensors (1B elements)");
 
-    group.bench_function("CPU Backend", |b| {
+    group.bench_function("CPU Backend Add Inplace", |b| {
         b.iter(|| {
-            cpu_a.add_inplace(&cpu_b, &mut cpu_dest).unwrap();
+            cpu_a.add_inplace(black_box(&cpu_b), black_box(&mut cpu_dest)).unwrap();
         })
     });
 
-    group.bench_function("Metal Backend", |b| {
+    group.bench_function("Metal Backend Add Inplace", |b| {
         b.iter(|| {
-            metal_a.add_inplace(&metal_b, &mut metal_dest).unwrap();
+            metal_a.add_inplace(black_box(&metal_b), black_box(&mut metal_dest)).unwrap();
+        })
+    });
+
+    group.bench_function("CPU Backend Add", |b| {
+        b.iter(|| {
+            cpu_a.add(black_box(&cpu_b)).unwrap();
+        })
+    });
+
+    group.bench_function("Metal Backend Add", |b| {
+        b.iter(|| {
+            metal_a.add(black_box(&metal_b)).unwrap();
         })
     });
 
