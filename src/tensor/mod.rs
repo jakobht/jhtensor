@@ -9,6 +9,7 @@ pub use metal_backend::MetalBackend;
 pub use tensor::Tensor;
 pub use tensor_error::TensorError;
 
+// Backend trait for all supported backends
 pub trait Backend: Sized {
     type Storage;
 
