@@ -22,6 +22,10 @@ impl MetalBackend {
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
+    fn mat_mul_inplace(a: &Self::Storage, shape_a: &[usize], b: &Self::Storage, shape_b: &[usize], dest: &mut Self::Storage, dtype: DType) {
+        unimplemented!()
+    }
+
     fn add_arrays_inplace(
         a: &Self::Storage,
         b: &Self::Storage,

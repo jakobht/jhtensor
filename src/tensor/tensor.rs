@@ -7,6 +7,35 @@ pub struct Tensor<B: Backend> {
 }
 
 impl<B: Backend> Tensor<B> {
+    pub fn mat_mul_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        if self.shape[1] != other.shape[0] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![self.shape[0], other.shape[1]],
+                got: vec![self.shape[1], other.shape[0]],
+            });
+        }
+        if dest.shape != vec![self.shape[0], other.shape[1]] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![self.shape[0], other.shape[1]],
+                got: dest.shape.clone(),
+            });
+        }
+        if self.dtype != other.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: other.dtype,
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::mat_mul_inplace(&self.data, &self.shape, &other.data, &other.shape, &mut dest.data, self.dtype);
+        Ok(())
+    }
+
     pub fn add_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
         if self.shape != other.shape {
             return Err(TensorError::ShapeMismatch {
@@ -113,6 +142,32 @@ mod tests {
                 got: DType::Int32
             }
         );
+    }
+
+    mod mat_mul {
+        use super::*;
+
+        #[test]
+        fn test_mat_mul_inplace_dot_product() {
+            let a = Tensor::<CPUBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1, 5]).unwrap();
+            let b = Tensor::<CPUBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
+            let mut dest = Tensor::<CPUBackend>::new::<f32>(&[0.0; 1], vec![1, 1]).unwrap();
+
+            a.mat_mul_inplace(&b, &mut dest).unwrap();
+
+            assert_eq!(dest.to_vec::<f32>().unwrap(), vec![55.0]);
+        }
+
+        #[test]
+        fn test_mat_mul_inplace() {
+            let a = Tensor::<CPUBackend>::new::<i32>(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], vec![5, 3]).unwrap();
+            let b = Tensor::<CPUBackend>::new::<i32>(&[1, 2, 3, 4, 5, 6], vec![3, 2]).unwrap();
+            let mut dest = Tensor::<CPUBackend>::new::<i32>(&[0; 10], vec![5, 2]).unwrap();
+
+            a.mat_mul_inplace(&b, &mut dest).unwrap();
+
+            assert_eq!(dest.to_vec::<i32>().unwrap(), vec![22, 28, 49, 64, 76, 100, 103, 136, 130, 172]);
+        }
     }
 
     mod add {
