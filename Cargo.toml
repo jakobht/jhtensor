@@ -10,7 +10,8 @@ objc2-metal = "0.3.2"
 
 [dev-dependencies]
 criterion = "0.8.2"
-rand = "0.10.1"
+rand = { version = "0.10", features = ["std"] }
+rand_chacha = "0.10.0"
 
 [[bench]]
 name = "tensor_bench"

@@ -4,6 +4,10 @@ use objc2_metal::{
     MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue, MTLComputeCommandEncoder, MTLComputePipelineState,
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
+use std::{
+    collections::HashMap, ptr::NonNull, sync::{OnceLock, RwLock}
+};
+use std::ffi::c_void;
 
 use crate::tensor::{Backend, DType};
 
@@ -19,11 +23,69 @@ impl MetalBackend {
     }
 }
 
+#[repr(C)]
+struct MatMulDimensions {
+    m: u32,
+    n: u32,
+    k: u32,
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
-    fn mat_mul_inplace(a: &Self::Storage, shape_a: &[usize], b: &Self::Storage, shape_b: &[usize], dest: &mut Self::Storage, dtype: DType) {
-        unimplemented!()
+    fn mat_mul_inplace(
+        a: &Self::Storage,
+        shape_a: &[usize],
+        b: &Self::Storage,
+        shape_b: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+    ) {
+        unsafe {
+            let ctx = get_metal_context();
+
+            let command_buffer = ctx.command_queue.commandBuffer().unwrap();
+            let encoder = command_buffer.computeCommandEncoder().unwrap();
+
+            let pipeline = match dtype {
+                DType::Float32 => ctx.get_pipeline("mat_mul_f32"),
+                DType::Int32 => ctx.get_pipeline("mat_mul_i32"),
+                DType::Int16 => ctx.get_pipeline("mat_mul_i16"),
+            };
+
+            let mut params = MatMulDimensions {
+                m: shape_a[0] as u32,
+                n: shape_b[1] as u32,
+                k: shape_a[1] as u32,
+            };
+            let params_buffer = ctx.device.newBufferWithBytes_length_options(
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),                std::mem::size_of::<MatMulDimensions>(),
+                MTLResourceOptions::StorageModeShared,
+            ).unwrap();
+
+            encoder.setComputePipelineState(&pipeline);
+            encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&params_buffer), 0, 3);
+
+            let grid_size = MTLSize {
+                width: shape_b[1],
+                height: shape_a[0],
+                depth: 1,
+            };
+            let threadgroup_size = MTLSize {
+                width: 16,
+                height: 16,
+                depth: 1,
+            };
+
+            encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
+            encoder.endEncoding();
+
+            command_buffer.commit();
+            command_buffer.waitUntilCompleted();
+        }
     }
 
     fn add_arrays_inplace(
@@ -41,11 +103,11 @@ impl Backend for MetalBackend {
             let compute_encoder = command_buffer.computeCommandEncoder().unwrap();
 
             let pipeline = match dtype {
-                DType::Float32 => &ctx.add_f32_pipeline,
-                DType::Int32 => &ctx.add_i32_pipeline,
-                DType::Int16 => &ctx.add_i16_pipeline,
+                DType::Float32 => ctx.get_pipeline("add_arrays_f32"),
+                DType::Int32 => ctx.get_pipeline("add_arrays_i32"),
+                DType::Int16 => ctx.get_pipeline("add_arrays_i16"),
             };
-            compute_encoder.setComputePipelineState(pipeline);
+            compute_encoder.setComputePipelineState(&pipeline);
 
             compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
@@ -112,15 +174,36 @@ impl Backend for MetalBackend {
     }
 }
 
-use std::sync::OnceLock;
-
 /// Holds our heavy, reusable GPU states for all supported data types
 struct MetalContext {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
-    add_f32_pipeline: Retained<ProtocolObject<dyn MTLComputePipelineState>>,
-    add_i32_pipeline: Retained<ProtocolObject<dyn MTLComputePipelineState>>,
-    add_i16_pipeline: Retained<ProtocolObject<dyn MTLComputePipelineState>>,
+    library: Retained<ProtocolObject<dyn MTLLibrary>>,
+    pipelines: RwLock<HashMap<String, Retained<ProtocolObject<dyn MTLComputePipelineState>>>>,
+}
+
+impl MetalContext {
+    fn get_pipeline(&self, name: &str) -> Retained<ProtocolObject<dyn MTLComputePipelineState>> {
+        if let Some(pipeline) = self.pipelines.read().unwrap().get(name) {
+            return pipeline.clone();
+        }
+
+        let mut cache = self.pipelines.write().unwrap();
+
+        // Check if the pipeline was already inserted into the cache (if not we are responsible for inserting it)
+        if let Some(pipeline) = cache.get(name) {
+            return pipeline.clone();
+        }
+
+        let function = self.library.newFunctionWithName(&NSString::from_str(name)).unwrap();
+        let pipeline = self
+            .device
+            .newComputePipelineStateWithFunction_error(&function)
+            .unwrap();
+        cache.insert(name.to_string(), pipeline.clone());
+
+        pipeline
+    }
 }
 
 /// Fetches the GPU state, initializing all variations exactly once
@@ -130,38 +213,23 @@ fn get_metal_context() -> &'static MetalContext {
     CONTEXT.get_or_init(|| {
         let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
 
-        let source = NSString::from_str(include_str!("../../src/shaders/add_func.metal"));
+        let source = NSString::from_str(concat!(
+            include_str!("../../src/shaders/mat_mul_func.metal"),
+            "\n\n",
+            include_str!("../../src/shaders/add_func.metal"),
+        ));
 
         let library = device
             .newLibraryWithSource_options_error(&source, None)
             .expect("Failed to compile Metal shader source at runtime");
-
-        // Extract and compile the Float32 entry point
-        let f32_fn = library
-            .newFunctionWithName(&NSString::from_str("add_arrays_f32"))
-            .unwrap();
-        let add_f32_pipeline = device.newComputePipelineStateWithFunction_error(&f32_fn).unwrap();
-
-        // Extract and compile the Int32 entry point
-        let i32_fn = library
-            .newFunctionWithName(&NSString::from_str("add_arrays_i32"))
-            .unwrap();
-        let add_i32_pipeline = device.newComputePipelineStateWithFunction_error(&i32_fn).unwrap();
-
-        // Extract and compile the Float16 entry point
-        let i16_fn = library
-            .newFunctionWithName(&NSString::from_str("add_arrays_i16"))
-            .unwrap();
-        let add_i16_pipeline = device.newComputePipelineStateWithFunction_error(&i16_fn).unwrap();
 
         let command_queue = device.newCommandQueue().unwrap();
 
         MetalContext {
             device,
             command_queue,
-            add_f32_pipeline,
-            add_i32_pipeline,
-            add_i16_pipeline,
+            library,
+            pipelines: RwLock::new(HashMap::new()),
         }
     })
 }
