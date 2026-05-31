@@ -4,10 +4,12 @@ use objc2_metal::{
     MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue, MTLComputeCommandEncoder, MTLComputePipelineState,
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
-use std::{
-    collections::HashMap, ptr::NonNull, sync::{OnceLock, RwLock}
-};
 use std::ffi::c_void;
+use std::{
+    collections::HashMap,
+    ptr::NonNull,
+    sync::{OnceLock, RwLock},
+};
 
 use crate::tensor::{Backend, DType};
 
@@ -58,10 +60,14 @@ impl Backend for MetalBackend {
                 n: shape_b[1] as u32,
                 k: shape_a[1] as u32,
             };
-            let params_buffer = ctx.device.newBufferWithBytes_length_options(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),                std::mem::size_of::<MatMulDimensions>(),
-                MTLResourceOptions::StorageModeShared,
-            ).unwrap();
+            let params_buffer = ctx
+                .device
+                .newBufferWithBytes_length_options(
+                    NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
+                    std::mem::size_of::<MatMulDimensions>(),
+                    MTLResourceOptions::StorageModeShared,
+                )
+                .unwrap();
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);

@@ -70,13 +70,17 @@ fn bench_tensor_mat_mul(c: &mut Criterion) {
 
     group.bench_function("CPU Backend Mat Mul Inplace", |b| {
         b.iter(|| {
-            cpu_a.mat_mul_inplace(black_box(&cpu_b), black_box(&mut cpu_dest)).unwrap();
+            cpu_a
+                .mat_mul_inplace(black_box(&cpu_b), black_box(&mut cpu_dest))
+                .unwrap();
         })
     });
 
     group.bench_function("Metal Backend Mat Mul Inplace", |b| {
         b.iter(|| {
-            metal_a.mat_mul_inplace(black_box(&metal_b), black_box(&mut metal_dest)).unwrap();
+            metal_a
+                .mat_mul_inplace(black_box(&metal_b), black_box(&mut metal_dest))
+                .unwrap();
         })
     });
 }

@@ -172,7 +172,7 @@ mod tests {
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![2,2,2],
+                    expected: vec![2, 2, 2],
                     got: vec![1, 2, 2]
                 }
             );
@@ -197,8 +197,8 @@ mod tests {
 
         #[test]
         fn test_dest_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5,1]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1,5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1, 5]).unwrap();
             let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 16], vec![4, 4]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest);
@@ -250,7 +250,7 @@ mod tests {
             ($backend:ident, $t:ident) => {
                 mod $t {
                     use rand::{RngExt, SeedableRng};
-                        use rand_chacha::ChaCha8Rng;
+                    use rand_chacha::ChaCha8Rng;
 
                     use super::*;
 
@@ -285,7 +285,9 @@ mod tests {
                         let metal_b = Tensor::<$backend>::new::<$t>(&b_data, vec![k, n]).unwrap();
                         let mut backend_dest =
                             Tensor::<$backend>::new::<$t>(&vec![0 as $t; size_dest], vec![m, n]).unwrap();
-                        metal_a.mat_mul_inplace(&metal_b, &mut backend_dest).unwrap();
+                        metal_a
+                            .mat_mul_inplace(&metal_b, &mut backend_dest)
+                            .unwrap();
 
                         assert_eq!(
                             backend_dest.to_vec::<$t>().unwrap(),
