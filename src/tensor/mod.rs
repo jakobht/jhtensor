@@ -13,6 +13,15 @@ pub use tensor_error::TensorError;
 pub trait Backend: Sized {
     type Storage;
 
+    fn mat_mul_inplace(
+        a: &Self::Storage,
+        shape_a: &[usize],
+        b: &Self::Storage,
+        shape_b: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+    );
+
     fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage;
 
     fn add_arrays_inplace(
