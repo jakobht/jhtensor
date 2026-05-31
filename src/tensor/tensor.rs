@@ -145,28 +145,51 @@ mod tests {
     }
 
     mod mat_mul {
-        use super::*;
+        use crate::tensor::{CPUBackend, MetalBackend, Tensor};
 
-        #[test]
-        fn test_mat_mul_inplace_dot_product() {
-            let a = Tensor::<CPUBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1, 5]).unwrap();
-            let b = Tensor::<CPUBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let mut dest = Tensor::<CPUBackend>::new::<f32>(&[0.0; 1], vec![1, 1]).unwrap();
+        macro_rules! test_mat_mul_for {
+            ($backend:ident, $t:ident) => {
+                mod $t {
+                    use super::*;
 
-            a.mat_mul_inplace(&b, &mut dest).unwrap();
+                    #[test]
+                    fn test_mat_mul_inplace_dot_product() {
+                    let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![1, 5]).unwrap();
+                    let b = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5, 1]).unwrap();
+                    let mut dest = Tensor::<$backend>::new::<$t>(&[0 as $t; 1], vec![1, 1]).unwrap();
 
-            assert_eq!(dest.to_vec::<f32>().unwrap(), vec![55.0]);
+                    a.mat_mul_inplace(&b, &mut dest).unwrap();
+
+                    assert_eq!(dest.to_vec::<$t>().unwrap(), vec![55 as $t]);
+                }
+
+                #[test]
+                fn test_mat_mul_inplace() {
+                    let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t, 7 as $t, 8 as $t, 9 as $t, 10 as $t, 11 as $t, 12 as $t, 13 as $t, 14 as $t, 15 as $t], vec![5, 3]).unwrap();
+                    let b = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t], vec![3, 2]).unwrap();
+                    let mut dest = Tensor::<$backend>::new::<$t>(&[0 as $t; 10], vec![5, 2]).unwrap();
+
+                    a.mat_mul_inplace(&b, &mut dest).unwrap();
+
+                    assert_eq!(dest.to_vec::<$t>().unwrap(), vec![22 as $t, 28 as $t, 49 as $t, 64 as $t, 76 as $t, 100 as $t, 103 as $t, 136 as $t, 130 as $t, 172 as $t]);
+                }}
+            };
         }
 
-        #[test]
-        fn test_mat_mul_inplace() {
-            let a = Tensor::<CPUBackend>::new::<i32>(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], vec![5, 3]).unwrap();
-            let b = Tensor::<CPUBackend>::new::<i32>(&[1, 2, 3, 4, 5, 6], vec![3, 2]).unwrap();
-            let mut dest = Tensor::<CPUBackend>::new::<i32>(&[0; 10], vec![5, 2]).unwrap();
+        mod metal {
+            use super::*;
 
-            a.mat_mul_inplace(&b, &mut dest).unwrap();
+            test_mat_mul_for!(MetalBackend, f32);
+            test_mat_mul_for!(MetalBackend, i32);
+            test_mat_mul_for!(MetalBackend, i16);
+        }
 
-            assert_eq!(dest.to_vec::<i32>().unwrap(), vec![22, 28, 49, 64, 76, 100, 103, 136, 130, 172]);
+        mod cpu {
+            use super::*;
+
+            test_mat_mul_for!(CPUBackend, f32);
+            test_mat_mul_for!(CPUBackend, i32);
+            test_mat_mul_for!(CPUBackend, i16);
         }
     }
 
