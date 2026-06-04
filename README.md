@@ -4,7 +4,9 @@
 
 Rust tensor library playground - very rough/WIP
 
-- So far supports adding two vectors on:
-  - CPU
-  - Apple Metal
+### Backend Feature Support
 
+| Operation | Data Types | CPU Backend | Metal Backend (GPU) |
+| :--- | :--- | :---: | :---: |
+| **Vector Addition** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
+| **Matrix Multiplication** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
