@@ -60,33 +60,34 @@ impl Backend for MetalBackend {
                 n: shape_b[1] as u32,
                 k: shape_a[1] as u32,
             };
-            let params_buffer = ctx
-                .device
-                .newBufferWithBytes_length_options(
-                    NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
-                    std::mem::size_of::<MatMulDimensions>(),
-                    MTLResourceOptions::StorageModeShared,
-                )
-                .unwrap();
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&params_buffer), 0, 3);
 
-            let grid_size = MTLSize {
-                width: shape_b[1],
-                height: shape_a[0],
-                depth: 1,
-            };
+            encoder.setBytes_length_atIndex(
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
+                std::mem::size_of::<MatMulDimensions>(),
+                3,
+            );
+
             let threadgroup_size = MTLSize {
                 width: 16,
                 height: 16,
                 depth: 1,
             };
 
-            encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
+            let grid_width = (shape_b[1] + 15) / 16;
+            let grid_height = (shape_a[0] + 15) / 16;
+
+            let threadgroups_per_grid = MTLSize {
+                width: grid_width,
+                height: grid_height,
+                depth: 1,
+            };
+
+            encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
             encoder.endEncoding();
 
             command_buffer.commit();

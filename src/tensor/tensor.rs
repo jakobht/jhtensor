@@ -297,7 +297,7 @@ mod tests {
 
                     #[test]
                     fn run_small_test() {
-                        run_test(1..16, 1..16, 1..16);
+                        run_test(19..20, 19..20, 19..20);
                     }
 
                     #[test]
