@@ -131,7 +131,7 @@ impl<B: Backend> Tensor<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tensor::{CPUBackend, DType, MetalBackend, Tensor, TensorError};
+    use crate::tensor::{DType, MetalBackend, Tensor, TensorError};
 
     #[test]
     fn test_tensor_new_shape_mismatch() {

@@ -1,5 +1,3 @@
-use std::cmp::max;
-
 use crate::tensor::{Activation, Backend, DType};
 
 pub struct CPUBackend;

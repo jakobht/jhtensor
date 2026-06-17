@@ -1,5 +1,5 @@
 use crate::test_fuzzy;
-use jhtensor::tensor::{Activation, MetalBackend, Tensor};
+use jhtensor::tensor::{Activation, MetalBackend};
 
 mod linear {
     use super::*;

@@ -3,17 +3,21 @@ using namespace metal;
 
 #define TILE_SIZE 16
 
-struct MatMulDimensions {
+#define ACTIVATION_NONE 0
+#define ACTIVATION_RELU 1
+
+struct MatMulParams {
     uint M; // The number of rows in the first matrix
     uint N; // The number of columns in the second matrix
     uint K; // The number of columns in the first matrix and the number of rows in the second matrix
+    uint activation;
 };
 
 template<typename T>
 void mat_mul_impl(device const T* inA,
                      device const T* inB,
                      device T* result,
-                     constant MatMulDimensions& params,
+                     constant MatMulParams& params,
                      threadgroup T* tileA,
                      threadgroup T* tileB,
                      uint2 gid [[thread_position_in_grid]],
@@ -55,6 +59,9 @@ void mat_mul_impl(device const T* inA,
     }
 
     if (row < params.M && col < params.N) {
+        if (params.activation == ACTIVATION_RELU && sum < 0) {
+            sum = 0;
+        }
         result[row * params.N + col] = sum;
     }
 }
@@ -62,7 +69,7 @@ void mat_mul_impl(device const T* inA,
 kernel void mat_mul_f32(device const float* inA    [[buffer(0)]],
                            device const float* inB    [[buffer(1)]],
                            device float* result [[buffer(2)]],
-                           constant MatMulDimensions& params [[buffer(3)]],
+                           constant MatMulParams& params [[buffer(3)]],
                            uint2 gid [[thread_position_in_grid]],
                            uint2 lid [[thread_position_in_threadgroup]])
 {
@@ -76,7 +83,7 @@ kernel void mat_mul_f32(device const float* inA    [[buffer(0)]],
 kernel void mat_mul_i32(device const int* inA      [[buffer(0)]],
                            device const int* inB      [[buffer(1)]],
                            device int* result   [[buffer(2)]],
-                           constant MatMulDimensions& params [[buffer(3)]],
+                           constant MatMulParams& params [[buffer(3)]],
                            uint2 gid [[thread_position_in_grid]],
                            uint2 lid [[thread_position_in_threadgroup]])
 {
@@ -89,7 +96,7 @@ kernel void mat_mul_i32(device const int* inA      [[buffer(0)]],
 kernel void mat_mul_i16(device const short* inA     [[buffer(0)]],
                            device const short* inB     [[buffer(1)]],
                            device short* result  [[buffer(2)]],
-                           constant MatMulDimensions& params [[buffer(3)]],
+                           constant MatMulParams& params [[buffer(3)]],
                            uint2 gid [[thread_position_in_grid]],
                            uint2 lid [[thread_position_in_threadgroup]])
 {

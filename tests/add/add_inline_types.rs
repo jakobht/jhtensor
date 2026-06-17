@@ -4,7 +4,7 @@ macro_rules! test_add_inplace_for {
     ($backend:ident, $t:ident) => {
         #[test]
         fn $t() {
-            let mut a =
+            let a =
                 Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5]).unwrap();
             let b =
                 Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5]).unwrap();
