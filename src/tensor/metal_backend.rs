@@ -15,16 +15,6 @@ use crate::tensor::{Activation, Backend, DType};
 
 pub struct MetalBackend;
 
-impl MetalBackend {
-    fn new_empty(num_elements: usize, dtype: DType) -> <Self as Backend>::Storage {
-        let ctx = get_metal_context();
-        let buffer_size = num_elements * dtype.byte_size();
-        ctx.device
-            .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-            .unwrap()
-    }
-}
-
 #[repr(C)]
 struct MatMulParams {
     m: u32,

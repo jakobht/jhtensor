@@ -2,12 +2,6 @@ use crate::tensor::{Activation, Backend, DType};
 
 pub struct CPUBackend;
 
-impl CPUBackend {
-    fn new_empty(num_elements: usize, dtype: DType) -> <Self as Backend>::Storage {
-        vec![0; num_elements * dtype.byte_size()]
-    }
-}
-
 impl Backend for CPUBackend {
     type Storage = Vec<u8>;
 
