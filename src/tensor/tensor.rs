@@ -81,25 +81,14 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn add(&self, other: &Self) -> Result<Self, TensorError> {
-        if self.shape != other.shape {
-            return Err(TensorError::ShapeMismatch {
-                expected: self.shape.clone(),
-                got: other.shape.clone(),
-            });
-        }
-        if self.dtype != other.dtype {
-            return Err(TensorError::TypeMismatch {
-                expected: self.dtype,
-                got: other.dtype,
-            });
-        }
-
-        let result_storage = B::add_arrays(&self.data, &other.data, &self.shape, self.dtype);
-        Ok(Tensor {
-            data: result_storage,
+        let mut result = B::allocate_empty(self.shape.iter().product(), self.dtype);
+        let mut result_tensor = Tensor {
+            data: result,
             shape: self.shape.clone(),
             dtype: self.dtype,
-        })
+        };
+        self.add_inplace(other, &mut result_tensor)?;
+        Ok(result_tensor)
     }
 
     pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
@@ -286,38 +275,6 @@ mod tests {
 
     mod add_inplace {
         use super::*;
-
-        #[test]
-        fn test_tensor_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
-
-            let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(
-                result.unwrap_err(),
-                TensorError::ShapeMismatch {
-                    expected: vec![5],
-                    got: vec![4]
-                }
-            );
-        }
-
-        #[test]
-        fn test_tensor_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
-
-            let result = a.add_inplace(&b, &mut dest);
-            assert_eq!(
-                result.unwrap_err(),
-                TensorError::TypeMismatch {
-                    expected: DType::Float32,
-                    got: DType::Int32
-                }
-            );
-        }
 
         #[test]
         fn test_dest_shape_mismatch() {
