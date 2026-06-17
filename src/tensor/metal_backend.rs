@@ -151,7 +151,9 @@ impl Backend for MetalBackend {
 
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
         let ctx = get_metal_context();
-        ctx.device.newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared).unwrap()
+        ctx.device
+            .newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared)
+            .unwrap()
     }
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {
