@@ -1,4 +1,6 @@
-use crate::tensor::{Backend, DType};
+use std::cmp::max;
+
+use crate::tensor::{Activation, Backend, DType};
 
 pub struct CPUBackend;
 
@@ -18,6 +20,7 @@ impl Backend for CPUBackend {
         shape_b: &[usize],
         dest: &mut Self::Storage,
         dtype: DType,
+        activation: Activation,
     ) {
         // Naive implementation for now
 
@@ -40,7 +43,16 @@ impl Backend for CPUBackend {
                             for k in 0..shape_a[1] {
                                 sum += a_slice[i * shape_a[1] + k] * b_slice[k * shape_b[1] + j];
                             }
-                            dest_slice[i * shape_b[1] + j] = sum;
+                            dest_slice[i * shape_b[1] + j] = match activation {
+                                Activation::None => sum,
+                                Activation::ReLU => {
+                                    if sum > 0 as $t {
+                                        sum
+                                    } else {
+                                        0 as $t
+                                    }
+                                }
+                            };
                         }
                     }
                 }

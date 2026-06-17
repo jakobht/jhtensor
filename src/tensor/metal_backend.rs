@@ -11,7 +11,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-use crate::tensor::{Backend, DType};
+use crate::tensor::{Activation, Backend, DType};
 
 pub struct MetalBackend;
 
@@ -42,6 +42,7 @@ impl Backend for MetalBackend {
         shape_b: &[usize],
         dest: &mut Self::Storage,
         dtype: DType,
+        activation: Activation,
     ) {
         unsafe {
             let ctx = get_metal_context();
