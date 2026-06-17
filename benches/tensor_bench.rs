@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use jhtensor::tensor::{CPUBackend, MetalBackend, Tensor};
+use jhtensor::tensor::{Activation, CPUBackend, MetalBackend, Tensor};
 use std::hint::black_box;
 
 fn bench_tensor_add(c: &mut Criterion) {
@@ -71,7 +71,7 @@ fn bench_tensor_mat_mul(c: &mut Criterion) {
     group.bench_function("CPU Backend Mat Mul Inplace", |b| {
         b.iter(|| {
             cpu_a
-                .mat_mul_inplace(black_box(&cpu_b), black_box(&mut cpu_dest))
+                .mat_mul_inplace(black_box(&cpu_b), black_box(&mut cpu_dest), Activation::None)
                 .unwrap();
         })
     });
@@ -79,7 +79,7 @@ fn bench_tensor_mat_mul(c: &mut Criterion) {
     group.bench_function("Metal Backend Mat Mul Inplace", |b| {
         b.iter(|| {
             metal_a
-                .mat_mul_inplace(black_box(&metal_b), black_box(&mut metal_dest))
+                .mat_mul_inplace(black_box(&metal_b), black_box(&mut metal_dest), Activation::None)
                 .unwrap();
         })
     });

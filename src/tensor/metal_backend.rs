@@ -1,17 +1,17 @@
 use objc2::{rc::Retained, runtime::ProtocolObject};
-use objc2_foundation::{NSString, NSURL};
+use objc2_foundation::NSString;
 use objc2_metal::{
     MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue, MTLComputeCommandEncoder, MTLComputePipelineState,
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
-use std::ffi::c_void;
+
 use std::{
     collections::HashMap,
     ptr::NonNull,
     sync::{OnceLock, RwLock},
 };
 
-use crate::tensor::{Backend, DType};
+use crate::tensor::{Activation, Backend, DType};
 
 pub struct MetalBackend;
 
@@ -26,10 +26,11 @@ impl MetalBackend {
 }
 
 #[repr(C)]
-struct MatMulDimensions {
+struct MatMulParams {
     m: u32,
     n: u32,
     k: u32,
+    activation: u32,
 }
 
 impl Backend for MetalBackend {
@@ -42,6 +43,7 @@ impl Backend for MetalBackend {
         shape_b: &[usize],
         dest: &mut Self::Storage,
         dtype: DType,
+        activation: Activation,
     ) {
         unsafe {
             let ctx = get_metal_context();
@@ -55,10 +57,11 @@ impl Backend for MetalBackend {
                 DType::Int16 => ctx.get_pipeline("mat_mul_i16"),
             };
 
-            let mut params = MatMulDimensions {
+            let mut params = MatMulParams {
                 m: shape_a[0] as u32,
                 n: shape_b[1] as u32,
                 k: shape_a[1] as u32,
+                activation: activation.to_shader_flag(),
             };
 
             encoder.setComputePipelineState(&pipeline);
@@ -68,7 +71,7 @@ impl Backend for MetalBackend {
 
             encoder.setBytes_length_atIndex(
                 NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
-                std::mem::size_of::<MatMulDimensions>(),
+                std::mem::size_of::<MatMulParams>(),
                 3,
             );
 

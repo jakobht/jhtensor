@@ -1,11 +1,13 @@
 mod cpu_backend;
 mod dtype;
 mod metal_backend;
+mod opts;
 mod tensor;
 mod tensor_error;
 pub use cpu_backend::CPUBackend;
 pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
+pub use opts::Activation;
 pub use tensor::Tensor;
 pub use tensor_error::TensorError;
 
@@ -20,6 +22,7 @@ pub trait Backend: Sized {
         shape_b: &[usize],
         dest: &mut Self::Storage,
         dtype: DType,
+        activation: Activation,
     );
 
     fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage;
