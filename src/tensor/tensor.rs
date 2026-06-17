@@ -94,9 +94,10 @@ impl<B: Backend> Tensor<B> {
             });
         }
 
-        let result_storage = B::add_arrays(&self.data, &other.data, &self.shape, self.dtype);
+        let mut result = B::allocate_empty(self.shape.iter().product(), self.dtype);
+        B::add_arrays_inplace(&self.data, &other.data, &mut result, &self.shape, self.dtype);
         Ok(Tensor {
-            data: result_storage,
+            data: result,
             shape: self.shape.clone(),
             dtype: self.dtype,
         })

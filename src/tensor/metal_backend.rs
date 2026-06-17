@@ -149,12 +149,9 @@ impl Backend for MetalBackend {
         }
     }
 
-    fn add_arrays(a: &Self::Storage, b: &Self::Storage, shape: &[usize], dtype: DType) -> Self::Storage {
-        let array_length = shape.iter().product();
-        let mut dest = Self::new_empty(array_length, dtype);
-        Self::add_arrays_inplace(a, b, &mut dest, shape, dtype);
-
-        dest
+    fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
+        let ctx = get_metal_context();
+        ctx.device.newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared).unwrap()
     }
 
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {
@@ -242,56 +239,4 @@ fn get_metal_context() -> &'static MetalContext {
             pipelines: RwLock::new(HashMap::new()),
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::tensor::{Backend, DType, MetalBackend};
-
-    mod add_arrays {
-        use super::*;
-
-        macro_rules! test_type {
-            ($t:ident, $dtype:expr) => {
-                mod $t {
-                    use super::*;
-
-                    #[test]
-                    fn small_array() {
-                        let a = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
-                        let b = MetalBackend::from_slice(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t]);
-
-                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[5], $dtype);
-
-                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, 5);
-
-                        assert_eq!(
-                            result_vec,
-                            vec![2 as $t, 4 as $t, 6 as $t, 8 as $t, 10 as $t]
-                        );
-                    }
-
-                    #[test]
-                    fn large_array_branch_coverage() {
-                        let size = 2048;
-                        let data = vec![1 as $t; size];
-
-                        let a = MetalBackend::from_slice(&data);
-                        let b = MetalBackend::from_slice(&data);
-
-                        let result_bytes = MetalBackend::add_arrays(&a, &b, &[size], $dtype);
-                        let result_vec = MetalBackend::to_vec::<$t>(&result_bytes, size);
-
-                        assert_eq!(result_vec[0], 2 as $t);
-                        assert_eq!(result_vec[size - 1], 2 as $t);
-                        assert_eq!(result_vec.len(), size);
-                    }
-                }
-            };
-        }
-
-        test_type!(f32, DType::Float32);
-        test_type!(i32, DType::Int32);
-        test_type!(i16, DType::Int16);
-    }
 }
