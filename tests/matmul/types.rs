@@ -8,11 +8,9 @@ macro_rules! test_mat_mul_for {
             #[test]
             fn test_mat_mul_inplace_dot_product() {
                 let a =
-                    Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![1, 5])
-                        .unwrap();
+                    Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![1, 5]).unwrap();
                 let b =
-                    Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5, 1])
-                        .unwrap();
+                    Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5, 1]).unwrap();
                 let mut dest = Tensor::<$backend>::new::<$t>(&[0 as $t; 1], vec![1, 1]).unwrap();
 
                 a.mat_mul_inplace(&b, &mut dest, Activation::None).unwrap();
@@ -24,8 +22,8 @@ macro_rules! test_mat_mul_for {
             fn test_mat_mul_inplace() {
                 let a = Tensor::<$backend>::new::<$t>(
                     &[
-                        1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t, 7 as $t, 8 as $t, 9 as $t,
-                        10 as $t, 11 as $t, 12 as $t, 13 as $t, 14 as $t, 15 as $t,
+                        1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t, 7 as $t, 8 as $t, 9 as $t, 10 as $t,
+                        11 as $t, 12 as $t, 13 as $t, 14 as $t, 15 as $t,
                     ],
                     vec![5, 3],
                 )
@@ -42,8 +40,8 @@ macro_rules! test_mat_mul_for {
                 assert_eq!(
                     dest.to_vec::<$t>().unwrap(),
                     vec![
-                        22 as $t, 28 as $t, 49 as $t, 64 as $t, 76 as $t, 100 as $t, 103 as $t, 136 as $t,
-                        130 as $t, 172 as $t
+                        22 as $t, 28 as $t, 49 as $t, 64 as $t, 76 as $t, 100 as $t, 103 as $t, 136 as $t, 130 as $t,
+                        172 as $t
                     ]
                 );
             }

@@ -128,7 +128,6 @@ impl<B: Backend> Tensor<B> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::tensor::{DType, MetalBackend, Tensor, TensorError};
