@@ -139,6 +139,10 @@ impl Backend for MetalBackend {
         }
     }
 
+    fn transpose_inplace(tensor: &Self::Storage, shape: &[usize], dest: &mut Self::Storage) {
+        unimplemented!()
+    }
+
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
         let ctx = get_metal_context();
         ctx.device

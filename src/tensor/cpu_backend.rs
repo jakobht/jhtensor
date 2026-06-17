@@ -88,6 +88,10 @@ impl Backend for CPUBackend {
         }
     }
 
+    fn transpose_inplace(tensor: &Self::Storage, shape: &[usize], dest: &mut Self::Storage) {
+        unimplemented!()
+    }
+
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
         vec![0; size * dtype.byte_size()]
     }
