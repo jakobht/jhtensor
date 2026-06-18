@@ -23,6 +23,12 @@ struct MatMulParams {
     activation: u32,
 }
 
+#[repr(C)]
+struct TransposeParams {
+    rows: u32,
+    cols: u32,
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
@@ -139,8 +145,55 @@ impl Backend for MetalBackend {
         }
     }
 
-    fn transpose_inplace(tensor: &Self::Storage, shape: &[usize], dest: &mut Self::Storage) {
-        unimplemented!()
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) {
+        unsafe {
+            let ctx = get_metal_context();
+
+            let command_buffer = ctx.command_queue.commandBuffer().unwrap();
+            let encoder = command_buffer.computeCommandEncoder().unwrap();
+
+            let pipeline = match dtype {
+                DType::Float32 => ctx.get_pipeline("transpose_f32"),
+                DType::Int32 => ctx.get_pipeline("transpose_i32"),
+                DType::Int16 => ctx.get_pipeline("transpose_i16"),
+            };
+
+            let mut params = TransposeParams {
+                rows: shape[0] as u32,
+                cols: shape[1] as u32,
+            };
+
+            encoder.setComputePipelineState(&pipeline);
+            encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
+
+            encoder.setBytes_length_atIndex(
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
+                std::mem::size_of::<TransposeParams>(),
+                2,
+            );
+
+            let threadgroup_size = MTLSize {
+                width: 16,
+                height: 16,
+                depth: 1,
+            };
+
+            let grid_width = (shape[1] + 15) / 16;
+            let grid_height = (shape[0] + 15) / 16;
+
+            let threadgroups_per_grid = MTLSize {
+                width: grid_width,
+                height: grid_height,
+                depth: 1,
+            };
+
+            encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
+            encoder.endEncoding();
+
+            command_buffer.commit();
+            command_buffer.waitUntilCompleted();
+        }
     }
 
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
@@ -220,6 +273,8 @@ fn get_metal_context() -> &'static MetalContext {
             include_str!("../../src/shaders/mat_mul_func.metal"),
             "\n\n",
             include_str!("../../src/shaders/add_func.metal"),
+            "\n\n",
+            include_str!("../../src/shaders/transpose_func.metal"),
         ));
 
         let library = device

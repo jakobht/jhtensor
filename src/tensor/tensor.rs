@@ -107,7 +107,7 @@ impl<B: Backend> Tensor<B> {
                 got: vec![self.shape.len()],
             });
         }
-        B::transpose_inplace(&self.data, &self.shape, &mut dest.data);
+        B::transpose_inplace(&self.data, &self.shape, &mut dest.data, self.dtype);
         Ok(())
     }
 

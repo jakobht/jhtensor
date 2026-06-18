@@ -33,7 +33,7 @@ pub trait Backend: Sized {
         dtype: DType,
     );
 
-    fn transpose_inplace(tensor: &Self::Storage, shape: &[usize], dest: &mut Self::Storage);
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType);
 
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage;
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage;
