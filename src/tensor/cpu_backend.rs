@@ -88,6 +88,33 @@ impl Backend for CPUBackend {
         }
     }
 
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) {
+        assert_eq!(shape.len(), 2);
+        assert!(dest.len() >= shape[0] * shape[1] * dtype.byte_size());
+
+        macro_rules! compute_transpose {
+            ($t:ty) => {{
+                unsafe {
+                    let slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), shape[0] * shape[1]);
+                    let dest_slice =
+                        std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), shape[0] * shape[1]);
+
+                    for i in 0..shape[0] {
+                        for j in 0..shape[1] {
+                            dest_slice[j * shape[0] + i] = slice[i * shape[1] + j];
+                        }
+                    }
+                }
+            }};
+        }
+
+        match dtype {
+            DType::Float32 => compute_transpose!(f32),
+            DType::Int32 => compute_transpose!(i32),
+            DType::Int16 => compute_transpose!(i16),
+        }
+    }
+
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
         vec![0; size * dtype.byte_size()]
     }

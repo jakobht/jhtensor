@@ -80,6 +80,37 @@ impl<B: Backend> Tensor<B> {
         Ok(())
     }
 
+    pub fn transpose(&self) -> Result<Self, TensorError> {
+        if self.shape.len() != 2 {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![2],
+                got: vec![self.shape.len()],
+            });
+        }
+        let result = B::allocate_empty(self.shape.iter().product(), self.dtype);
+
+        let result_shape = vec![self.shape[1], self.shape[0]];
+
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: result_shape,
+            dtype: self.dtype,
+        };
+        self.transpose_inplace(&mut result_tensor)?;
+        Ok(result_tensor)
+    }
+
+    pub fn transpose_inplace(&self, dest: &mut Self) -> Result<(), TensorError> {
+        if self.shape.len() != 2 {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![2],
+                got: vec![self.shape.len()],
+            });
+        }
+        B::transpose_inplace(&self.data, &self.shape, &mut dest.data, self.dtype);
+        Ok(())
+    }
+
     pub fn add(&self, other: &Self) -> Result<Self, TensorError> {
         let mut result = B::allocate_empty(self.shape.iter().product(), self.dtype);
         let mut result_tensor = Tensor {
@@ -114,6 +145,10 @@ impl<B: Backend> Tensor<B> {
             });
         }
         Ok(B::to_vec::<T>(&self.data, self.shape.iter().product()))
+    }
+
+    pub fn shape(&self) -> &[usize] {
+        &self.shape
     }
 }
 
@@ -306,6 +341,25 @@ mod tests {
                     got: DType::Int32
                 }
             );
+        }
+    }
+
+    mod transpose {
+        use super::*;
+
+        #[test]
+        fn test_tensor_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let result = a.transpose();
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_tensor_shape_inline_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 10], vec![2, 5]).unwrap();
+            let result = a.transpose_inplace(&mut dest);
+            assert!(result.is_err());
         }
     }
 }

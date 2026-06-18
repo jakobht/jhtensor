@@ -33,6 +33,8 @@ pub trait Backend: Sized {
         dtype: DType,
     );
 
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType);
+
     fn allocate_empty(size: usize, dtype: DType) -> Self::Storage;
     fn from_slice<T: Copy>(data: &[T]) -> Self::Storage;
     fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Vec<T>;
