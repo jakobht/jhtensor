@@ -9,4 +9,5 @@ Rust tensor library playground - very rough/WIP
 | Operation | Data Types | CPU Backend | Metal Backend (GPU) |
 | :--- | :--- | :---: | :---: |
 | **Vector Addition** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
-| **Matrix Multiplication** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
+| **Matrix Multiplication** (Linear, ReLU) | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
+| **Transpose** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
