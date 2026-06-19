@@ -89,7 +89,12 @@ impl Backend for CPUBackend {
         Ok(())
     }
 
-    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) -> Result<(), TensorError> {
+    fn transpose_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+    ) -> Result<(), TensorError> {
         assert!(
             dest.len() >= shape[0] * shape[1] * dtype.byte_size(),
             "Destination buffer too small for transpose"
@@ -99,7 +104,8 @@ impl Backend for CPUBackend {
             ($t:ty) => {{
                 unsafe {
                     let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), shape[0] * shape[1]);
-                    let dest_slice = std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), shape[0] * shape[1]);
+                    let dest_slice =
+                        std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), shape[0] * shape[1]);
 
                     for i in 0..shape[0] {
                         for j in 0..shape[1] {

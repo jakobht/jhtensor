@@ -43,8 +43,13 @@ impl Backend for MetalBackend {
     ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
-            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
-            let encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+            let command_buffer = ctx
+                .command_queue
+                .commandBuffer()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer
+                .computeCommandEncoder()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "mat_mul_f32",
@@ -65,7 +70,8 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
             encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
+                    .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
                 std::mem::size_of::<MatMulParams>(),
                 3,
             );
@@ -105,8 +111,13 @@ impl Backend for MetalBackend {
             let ctx = get_metal_context();
             let array_length = shape.iter().product();
 
-            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
-            let compute_encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+            let command_buffer = ctx
+                .command_queue
+                .commandBuffer()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let compute_encoder = command_buffer
+                .computeCommandEncoder()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "add_arrays_f32",
@@ -146,11 +157,21 @@ impl Backend for MetalBackend {
         Ok(())
     }
 
-    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) -> Result<(), TensorError> {
+    fn transpose_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+    ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
-            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
-            let encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+            let command_buffer = ctx
+                .command_queue
+                .commandBuffer()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer
+                .computeCommandEncoder()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "transpose_f32",
@@ -168,7 +189,8 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
 
             encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
+                    .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
                 std::mem::size_of::<TransposeParams>(),
                 2,
             );
@@ -200,7 +222,8 @@ impl Backend for MetalBackend {
     #[inline]
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
         let ctx = get_metal_context();
-        Ok(ctx.device
+        Ok(ctx
+            .device
             .newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared)
             .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?)
     }
@@ -254,9 +277,13 @@ impl MetalContext {
             return Ok(pipeline);
         }
 
-        let function = self.library.newFunctionWithName(&NSString::from_str(name))
+        let function = self
+            .library
+            .newFunctionWithName(&NSString::from_str(name))
             .ok_or_else(|| TensorError::BackendFailure(format!("Shader function '{}' not found", name)))?;
-        let pipeline = self.device.newComputePipelineStateWithFunction_error(&function)
+        let pipeline = self
+            .device
+            .newComputePipelineStateWithFunction_error(&function)
             .map_err(|_| TensorError::BackendFailure(format!("Failed to create pipeline for '{}'", name)))?;
 
         cache.insert(name.to_string(), pipeline.clone());

@@ -19,7 +19,11 @@ impl std::fmt::Display for TensorError {
                 write!(f, "Tensor dtypes do not match: expected {:?}, got {:?}", expected, got)
             }
             TensorError::DataLengthMismatch { expected_len, got_len } => {
-                write!(f, "Data length does not match shape: expected {}, got {}", expected_len, got_len)
+                write!(
+                    f,
+                    "Data length does not match shape: expected {}, got {}",
+                    expected_len, got_len
+                )
             }
             TensorError::DimensionMismatch { expected, got } => {
                 write!(f, "Invalid tensor dimensions: expected {}, got {}", expected, got)
@@ -76,10 +80,7 @@ mod tests {
 
     test_display!(
         test_dimension_mismatch_display,
-        TensorError::DimensionMismatch {
-            expected: 2,
-            got: 3
-        },
+        TensorError::DimensionMismatch { expected: 2, got: 3 },
         "Invalid tensor dimensions: expected 2, got 3"
     );
 

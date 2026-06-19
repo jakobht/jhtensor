@@ -38,7 +38,12 @@ pub trait Backend: Sized {
     ) -> Result<(), TensorError>;
 
     /// Performs matrix transposition in-place: dest = A^T
-    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) -> Result<(), TensorError>;
+    fn transpose_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+    ) -> Result<(), TensorError>;
 
     /// Allocates a new empty storage buffer of the given size and dtype.
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError>;

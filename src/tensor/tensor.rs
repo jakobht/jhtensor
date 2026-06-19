@@ -208,10 +208,7 @@ mod tests {
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
-                TensorError::DimensionMismatch {
-                    expected: 2,
-                    got: 1
-                }
+                TensorError::DimensionMismatch { expected: 2, got: 1 }
             );
         }
 
