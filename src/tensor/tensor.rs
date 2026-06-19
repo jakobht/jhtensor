@@ -361,14 +361,40 @@ mod tests {
             let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
             let result = a.transpose();
             assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 1 },
+            );
         }
 
         #[test]
-        fn test_tensor_shape_inline_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 10], vec![2, 5]).unwrap();
+        fn test_tensor_dest_shape_inline_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], vec![2, 3]).unwrap();
             let result = a.transpose_inplace(&mut dest);
             assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: vec![3, 2],
+                    got: vec![2, 3],
+                },
+            );
+        }
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 6], vec![3, 2]).unwrap();
+            let result = a.transpose_inplace(&mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32,
+                },
+            );
         }
     }
 }
