@@ -17,10 +17,7 @@ macro_rules! test_sum_axis_for {
                 let result_vec = result.to_vec::<$t>().unwrap();
 
                 assert_eq!(result.shape(), vec![3]);
-                assert_eq!(
-                    result_vec,
-                    vec![5 as $t, 7 as $t, 9 as $t]
-                );
+                assert_eq!(result_vec, vec![5 as $t, 7 as $t, 9 as $t]);
             }
 
             #[test]
@@ -35,10 +32,7 @@ macro_rules! test_sum_axis_for {
                 let result_vec = result.to_vec::<$t>().unwrap();
 
                 assert_eq!(result.shape(), vec![2]);
-                assert_eq!(
-                    result_vec,
-                    vec![6 as $t, 15 as $t]
-                );
+                assert_eq!(result_vec, vec![6 as $t, 15 as $t]);
             }
         }
     };

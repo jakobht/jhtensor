@@ -124,7 +124,13 @@ impl Backend for CPUBackend {
         Ok(())
     }
 
-    fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError> {
+    fn sum_axis_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError> {
         let dest_size = shape[if axis == 0 { 1 } else { 0 }];
         assert!(
             dest.len() >= dest_size * dtype.byte_size(),
@@ -153,8 +159,7 @@ impl Backend for CPUBackend {
                                 dest_slice[j] += a_slice[i * shape[1] + j];
                             }
                         }
-                    }
-                    else {
+                    } else {
                         return Err(TensorError::BackendFailure("Invalid axis for sum_axis".into()));
                     }
                 }

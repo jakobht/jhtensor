@@ -226,7 +226,13 @@ impl Backend for MetalBackend {
         Ok(())
     }
 
-    fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError> {
+    fn sum_axis_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
 
@@ -244,7 +250,6 @@ impl Backend for MetalBackend {
 
             let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
                 .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?;
-
 
             let command_buffer = ctx
                 .command_queue

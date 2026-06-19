@@ -8,11 +8,7 @@ macro_rules! test_fuzzy {
 
             use super::*;
 
-            fn run_test(
-                m_range: std::ops::Range<usize>,
-                n_range: std::ops::Range<usize>,
-                axis: usize,
-            ) {
+            fn run_test(m_range: std::ops::Range<usize>, n_range: std::ops::Range<usize>, axis: usize) {
                 let mut rng = ChaCha8Rng::seed_from_u64(42);
 
                 let m = rng.random_range(m_range);

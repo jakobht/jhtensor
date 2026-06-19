@@ -46,7 +46,13 @@ pub trait Backend: Sized {
     ) -> Result<(), TensorError>;
 
     /// Performs sum reduction over the axis
-    fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError>;
+    fn sum_axis_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError>;
 
     /// Allocates a new empty storage buffer of the given size and dtype.
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError>;

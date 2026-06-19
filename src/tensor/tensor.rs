@@ -136,7 +136,10 @@ impl<B: Backend> Tensor<B> {
 
     pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
         if axis >= self.shape.len() {
-            return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
+            return Err(TensorError::DimensionMismatch {
+                expected: axis,
+                got: self.shape.len(),
+            });
         }
 
         let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
@@ -153,7 +156,10 @@ impl<B: Backend> Tensor<B> {
 
     pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
         if axis >= self.shape.len() {
-            return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
+            return Err(TensorError::DimensionMismatch {
+                expected: axis,
+                got: self.shape.len(),
+            });
         }
         let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
         if dest.shape != vec![dest_size] {

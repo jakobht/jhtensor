@@ -1,4 +1,3 @@
-
-mod types;
-mod metal_fuzzy;
 mod fuzzy;
+mod metal_fuzzy;
+mod types;
