@@ -11,7 +11,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-use crate::tensor::{Activation, Backend, DType};
+use crate::tensor::{Activation, Backend, DType, TensorError};
 
 pub struct MetalBackend;
 
@@ -40,18 +40,17 @@ impl Backend for MetalBackend {
         dest: &mut Self::Storage,
         dtype: DType,
         activation: Activation,
-    ) {
+    ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
+            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
-            let command_buffer = ctx.command_queue.commandBuffer().unwrap();
-            let encoder = command_buffer.computeCommandEncoder().unwrap();
-
-            let pipeline = match dtype {
-                DType::Float32 => ctx.get_pipeline("mat_mul_f32"),
-                DType::Int32 => ctx.get_pipeline("mat_mul_i32"),
-                DType::Int16 => ctx.get_pipeline("mat_mul_i16"),
-            };
+            let pipeline = ctx.get_pipeline(match dtype {
+                DType::Float32 => "mat_mul_f32",
+                DType::Int32 => "mat_mul_i32",
+                DType::Int16 => "mat_mul_i16",
+            })?;
 
             let mut params = MatMulParams {
                 m: shape_a[0] as u32,
@@ -66,7 +65,7 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
             encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
                 std::mem::size_of::<MatMulParams>(),
                 3,
             );
@@ -92,6 +91,7 @@ impl Backend for MetalBackend {
             command_buffer.commit();
             command_buffer.waitUntilCompleted();
         }
+        Ok(())
     }
 
     fn add_arrays_inplace(
@@ -100,19 +100,19 @@ impl Backend for MetalBackend {
         dest: &mut Self::Storage,
         shape: &[usize],
         dtype: DType,
-    ) {
+    ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
             let array_length = shape.iter().product();
 
-            let command_buffer = ctx.command_queue.commandBuffer().unwrap();
-            let compute_encoder = command_buffer.computeCommandEncoder().unwrap();
+            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let compute_encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
-            let pipeline = match dtype {
-                DType::Float32 => ctx.get_pipeline("add_arrays_f32"),
-                DType::Int32 => ctx.get_pipeline("add_arrays_i32"),
-                DType::Int16 => ctx.get_pipeline("add_arrays_i16"),
-            };
+            let pipeline = ctx.get_pipeline(match dtype {
+                DType::Float32 => "add_arrays_f32",
+                DType::Int32 => "add_arrays_i32",
+                DType::Int16 => "add_arrays_i16",
+            })?;
             compute_encoder.setComputePipelineState(&pipeline);
 
             compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
@@ -143,20 +143,20 @@ impl Backend for MetalBackend {
             command_buffer.commit();
             command_buffer.waitUntilCompleted();
         }
+        Ok(())
     }
 
-    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) {
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context();
+            let command_buffer = ctx.command_queue.commandBuffer().ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer.computeCommandEncoder().ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
-            let command_buffer = ctx.command_queue.commandBuffer().unwrap();
-            let encoder = command_buffer.computeCommandEncoder().unwrap();
-
-            let pipeline = match dtype {
-                DType::Float32 => ctx.get_pipeline("transpose_f32"),
-                DType::Int32 => ctx.get_pipeline("transpose_i32"),
-                DType::Int16 => ctx.get_pipeline("transpose_i16"),
-            };
+            let pipeline = ctx.get_pipeline(match dtype {
+                DType::Float32 => "transpose_f32",
+                DType::Int32 => "transpose_i32",
+                DType::Int16 => "transpose_i16",
+            })?;
 
             let mut params = TransposeParams {
                 rows: shape[0] as u32,
@@ -168,7 +168,7 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
 
             encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).unwrap(),
+                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>()).ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
                 std::mem::size_of::<TransposeParams>(),
                 2,
             );
@@ -194,16 +194,19 @@ impl Backend for MetalBackend {
             command_buffer.commit();
             command_buffer.waitUntilCompleted();
         }
+        Ok(())
     }
 
-    fn allocate_empty(size: usize, dtype: DType) -> Self::Storage {
+    #[inline]
+    fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
         let ctx = get_metal_context();
-        ctx.device
+        Ok(ctx.device
             .newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared)
-            .unwrap()
+            .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?)
     }
 
-    fn from_slice<T: Copy>(data: &[T]) -> Self::Storage {
+    #[inline]
+    fn from_slice<T: Copy>(data: &[T]) -> Result<Self::Storage, TensorError> {
         unsafe {
             let ctx = get_metal_context();
             let buffer_size = data.len() * std::mem::size_of::<T>();
@@ -211,21 +214,22 @@ impl Backend for MetalBackend {
             let buffer = ctx
                 .device
                 .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-                .unwrap();
+                .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?;
 
             let raw_ptr = buffer.contents().as_ptr().cast::<T>();
             let slice = std::slice::from_raw_parts_mut(raw_ptr, data.len());
             slice.copy_from_slice(data);
 
-            buffer
+            Ok(buffer)
         }
     }
 
-    fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Vec<T> {
+    #[inline]
+    fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Result<Vec<T>, TensorError> {
         unsafe {
             let raw_ptr = storage.contents().as_ptr().cast::<T>();
             let slice = std::slice::from_raw_parts(raw_ptr, num_elements);
-            slice.to_vec()
+            Ok(slice.to_vec())
         }
     }
 }
@@ -239,26 +243,24 @@ struct MetalContext {
 }
 
 impl MetalContext {
-    fn get_pipeline(&self, name: &str) -> Retained<ProtocolObject<dyn MTLComputePipelineState>> {
-        if let Some(pipeline) = self.pipelines.read().unwrap().get(name) {
-            return pipeline.clone();
+    /// Retrieves a cached pipeline or compiles and caches it if missing.
+    fn get_pipeline(&self, name: &str) -> Result<Retained<ProtocolObject<dyn MTLComputePipelineState>>, TensorError> {
+        if let Some(pipeline) = self.pipelines.read().unwrap().get(name).cloned() {
+            return Ok(pipeline);
         }
 
         let mut cache = self.pipelines.write().unwrap();
-
-        // Check if the pipeline was already inserted into the cache (if not we are responsible for inserting it)
-        if let Some(pipeline) = cache.get(name) {
-            return pipeline.clone();
+        if let Some(pipeline) = cache.get(name).cloned() {
+            return Ok(pipeline);
         }
 
-        let function = self.library.newFunctionWithName(&NSString::from_str(name)).unwrap();
-        let pipeline = self
-            .device
-            .newComputePipelineStateWithFunction_error(&function)
-            .unwrap();
-        cache.insert(name.to_string(), pipeline.clone());
+        let function = self.library.newFunctionWithName(&NSString::from_str(name))
+            .ok_or_else(|| TensorError::BackendFailure(format!("Shader function '{}' not found", name)))?;
+        let pipeline = self.device.newComputePipelineStateWithFunction_error(&function)
+            .map_err(|_| TensorError::BackendFailure(format!("Failed to create pipeline for '{}'", name)))?;
 
-        pipeline
+        cache.insert(name.to_string(), pipeline.clone());
+        Ok(pipeline)
     }
 }
 
@@ -281,7 +283,7 @@ fn get_metal_context() -> &'static MetalContext {
             .newLibraryWithSource_options_error(&source, None)
             .expect("Failed to compile Metal shader source at runtime");
 
-        let command_queue = device.newCommandQueue().unwrap();
+        let command_queue = device.newCommandQueue().expect("Failed to create command queue");
 
         MetalContext {
             device,

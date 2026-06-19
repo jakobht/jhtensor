@@ -4,6 +4,7 @@ mod metal_backend;
 mod opts;
 mod tensor;
 mod tensor_error;
+
 pub use cpu_backend::CPUBackend;
 pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
@@ -11,10 +12,12 @@ pub use opts::Activation;
 pub use tensor::Tensor;
 pub use tensor_error::TensorError;
 
-// Backend trait for all supported backends
+/// Backend trait for all supported backends
 pub trait Backend: Sized {
+    /// The underlying storage type for this backend.
     type Storage;
 
+    /// Performs matrix multiplication in-place: dest = A * B + activation
     fn mat_mul_inplace(
         a: &Self::Storage,
         shape_a: &[usize],
@@ -23,19 +26,26 @@ pub trait Backend: Sized {
         dest: &mut Self::Storage,
         dtype: DType,
         activation: Activation,
-    );
+    ) -> Result<(), TensorError>;
 
+    /// Performs element-wise addition in-place: dest = A + B
     fn add_arrays_inplace(
         a: &Self::Storage,
         b: &Self::Storage,
         dest: &mut Self::Storage,
         shape: &[usize],
         dtype: DType,
-    );
+    ) -> Result<(), TensorError>;
 
-    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType);
+    /// Performs matrix transposition in-place: dest = A^T
+    fn transpose_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType) -> Result<(), TensorError>;
 
-    fn allocate_empty(size: usize, dtype: DType) -> Self::Storage;
-    fn from_slice<T: Copy>(data: &[T]) -> Self::Storage;
-    fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Vec<T>;
+    /// Allocates a new empty storage buffer of the given size and dtype.
+    fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError>;
+
+    /// Converts a slice of typed data into backend storage.
+    fn from_slice<T: Copy>(data: &[T]) -> Result<Self::Storage, TensorError>;
+
+    /// Converts backend storage back into a typed vector.
+    fn to_vec<T: Copy>(storage: &Self::Storage, num_elements: usize) -> Result<Vec<T>, TensorError>;
 }

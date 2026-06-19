@@ -1,5 +1,6 @@
 use crate::tensor::tensor_error::TensorError;
 use crate::tensor::{Activation, Backend, DType, TensorDType};
+
 pub struct Tensor<B: Backend> {
     data: B::Storage,
     shape: Vec<usize>,
@@ -9,16 +10,15 @@ pub struct Tensor<B: Backend> {
 impl<B: Backend> Tensor<B> {
     pub fn mat_mul_inplace(&self, other: &Self, dest: &mut Self, activation: Activation) -> Result<(), TensorError> {
         if self.shape.len() != 2 || other.shape.len() != 2 || dest.shape.len() != 2 {
-            return Err(TensorError::ShapeMismatch {
-                expected: vec![2, 2, 2],
-                got: vec![self.shape.len(), other.shape.len(), dest.shape.len()],
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: self.shape.len(),
             });
         }
-
         if self.shape[1] != other.shape[0] {
             return Err(TensorError::ShapeMismatch {
                 expected: vec![self.shape[0], other.shape[1]],
-                got: vec![self.shape[1], other.shape[0]],
+                got: vec![self.shape[0], self.shape[1]],
             });
         }
         if dest.shape != vec![self.shape[0], other.shape[1]] {
@@ -47,7 +47,7 @@ impl<B: Backend> Tensor<B> {
             &mut dest.data,
             self.dtype,
             activation,
-        );
+        )?;
         Ok(())
     }
 
@@ -76,18 +76,18 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        B::add_arrays_inplace(&self.data, &other.data, &mut dest.data, &self.shape, self.dtype);
+        B::add_arrays_inplace(&self.data, &other.data, &mut dest.data, &self.shape, self.dtype)?;
         Ok(())
     }
 
     pub fn transpose(&self) -> Result<Self, TensorError> {
         if self.shape.len() != 2 {
-            return Err(TensorError::ShapeMismatch {
-                expected: vec![2],
-                got: vec![self.shape.len()],
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: self.shape.len(),
             });
         }
-        let result = B::allocate_empty(self.shape.iter().product(), self.dtype);
+        let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
 
         let result_shape = vec![self.shape[1], self.shape[0]];
 
@@ -102,17 +102,29 @@ impl<B: Backend> Tensor<B> {
 
     pub fn transpose_inplace(&self, dest: &mut Self) -> Result<(), TensorError> {
         if self.shape.len() != 2 {
-            return Err(TensorError::ShapeMismatch {
-                expected: vec![2],
-                got: vec![self.shape.len()],
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: self.shape.len(),
             });
         }
-        B::transpose_inplace(&self.data, &self.shape, &mut dest.data, self.dtype);
+        if dest.shape != vec![self.shape[1], self.shape[0]] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![self.shape[1], self.shape[0]],
+                got: dest.shape.clone(),
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::transpose_inplace(&self.data, &self.shape, &mut dest.data, self.dtype)?;
         Ok(())
     }
 
     pub fn add(&self, other: &Self) -> Result<Self, TensorError> {
-        let mut result = B::allocate_empty(self.shape.iter().product(), self.dtype);
+        let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
         let mut result_tensor = Tensor {
             data: result,
             shape: self.shape.clone(),
@@ -131,7 +143,7 @@ impl<B: Backend> Tensor<B> {
         }
 
         Ok(Tensor {
-            data: B::from_slice(data),
+            data: B::from_slice(data)?,
             shape,
             dtype: T::dtype(),
         })
@@ -144,7 +156,7 @@ impl<B: Backend> Tensor<B> {
                 got: T::dtype(),
             });
         }
-        Ok(B::to_vec::<T>(&self.data, self.shape.iter().product()))
+        Ok(B::to_vec::<T>(&self.data, self.shape.iter().product())?)
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -196,9 +208,9 @@ mod tests {
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
-                TensorError::ShapeMismatch {
-                    expected: vec![2, 2, 2],
-                    got: vec![1, 2, 2]
+                TensorError::DimensionMismatch {
+                    expected: 2,
+                    got: 1
                 }
             );
         }
@@ -266,7 +278,7 @@ mod tests {
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
                     expected: vec![2, 1],
-                    got: vec![2, 5]
+                    got: vec![2, 2]
                 }
             );
         }
