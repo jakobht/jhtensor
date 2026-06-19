@@ -219,6 +219,10 @@ impl Backend for MetalBackend {
         Ok(())
     }
 
+    fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError> {
+        unimplemented!()
+    }
+
     #[inline]
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
         let ctx = get_metal_context();

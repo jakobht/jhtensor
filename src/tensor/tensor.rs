@@ -134,6 +134,42 @@ impl<B: Backend> Tensor<B> {
         Ok(result_tensor)
     }
 
+    pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
+        if axis < self.shape.len() {
+            return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
+        }
+
+        let result = B::allocate_empty(self.shape[axis], self.dtype)?;
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: vec![self.shape[axis]],
+            dtype: self.dtype,
+        };
+
+        self.sum_axis_inplace(axis, &mut result_tensor)?;
+        Ok(result_tensor)
+    }
+
+    pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
+        if axis < self.shape.len() {
+            return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
+        }
+        if dest.shape != vec![self.shape[axis]] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![self.shape[axis]],
+                got: dest.shape.clone(),
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::sum_axis_inplace(&self.data, &self.shape, &mut dest.data, self.dtype)?;
+        Ok(())
+    }
+
     pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
         if data.len() != shape.iter().product() {
             return Err(TensorError::DataLengthMismatch {
