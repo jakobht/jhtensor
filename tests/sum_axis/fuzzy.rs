@@ -19,7 +19,7 @@ macro_rules! test_fuzzy {
                 let n = rng.random_range(n_range);
 
                 let size_a = m * n;
-                let size_dest = if axis == 0 { m } else { n };
+                let size_dest = if axis == 0 { n } else { m };
 
                 // Fill vectors with dynamic data
                 let a_data: Vec<$t> = (0..size_a).map(|_| rng.random_range(-10..10) as $t).collect();

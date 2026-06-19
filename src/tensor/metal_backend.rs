@@ -29,6 +29,13 @@ struct TransposeParams {
     cols: u32,
 }
 
+#[repr(C)]
+struct SumAxisParams {
+    rows: u32,
+    cols: u32,
+    axis: u32,
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
@@ -220,7 +227,64 @@ impl Backend for MetalBackend {
     }
 
     fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError> {
-        unimplemented!()
+        unsafe {
+            let ctx = get_metal_context();
+
+            let pipeline = ctx.get_pipeline(match dtype {
+                DType::Float32 => "sum_axis_f32",
+                DType::Int32 => "sum_axis_i32",
+                DType::Int16 => "sum_axis_i16",
+            })?;
+
+            let mut params = SumAxisParams {
+                rows: shape[0] as u32,
+                cols: shape[1] as u32,
+                axis: axis as u32,
+            };
+
+            let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
+                .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?;
+
+
+            let command_buffer = ctx
+                .command_queue
+                .commandBuffer()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer
+                .computeCommandEncoder()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+
+            encoder.setComputePipelineState(&pipeline);
+            encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
+            encoder.setBytes_length_atIndex(params_ptr, std::mem::size_of::<SumAxisParams>(), 2);
+
+            let dest_size = shape[if axis == 0 { 1 } else { 0 }];
+
+            let max_threads_per_group = 256;
+            let threadgroup_width = std::cmp::min(dest_size, max_threads_per_group);
+
+            let threadgroup_size = MTLSize {
+                width: threadgroup_width,
+                height: 1,
+                depth: 1,
+            };
+
+            let grid_width = (dest_size + threadgroup_width - 1) / threadgroup_width;
+
+            let threadgroups_per_grid = MTLSize {
+                width: grid_width,
+                height: 1,
+                depth: 1,
+            };
+
+            encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
+            encoder.endEncoding();
+
+            command_buffer.commit();
+            command_buffer.waitUntilCompleted();
+        }
+        Ok(())
     }
 
     #[inline]
@@ -308,6 +372,8 @@ fn get_metal_context() -> &'static MetalContext {
             include_str!("../../src/shaders/add_func.metal"),
             "\n\n",
             include_str!("../../src/shaders/transpose_func.metal"),
+            "\n\n",
+            include_str!("../../src/shaders/sum_axis_func.metal"),
         ));
 
         let library = device

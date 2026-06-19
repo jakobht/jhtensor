@@ -125,7 +125,48 @@ impl Backend for CPUBackend {
     }
 
     fn sum_axis_inplace(a: &Self::Storage, shape: &[usize], dest: &mut Self::Storage, dtype: DType, axis: usize) -> Result<(), TensorError> {
-        unimplemented!()
+        let dest_size = shape[if axis == 0 { 1 } else { 0 }];
+        assert!(
+            dest.len() >= dest_size * dtype.byte_size(),
+            "Destination buffer too small for sum axis"
+        );
+
+        macro_rules! compute_sum_axis {
+            ($t:ty) => {{
+                unsafe {
+                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), shape[0] * shape[1]);
+                    let dest_slice = std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), dest_size);
+
+                    if axis == 1 {
+                        for i in 0..shape[0] {
+                            let mut sum = 0 as $t;
+                            for j in 0..shape[1] {
+                                sum += a_slice[i * shape[1] + j];
+                            }
+                            dest_slice[i] = sum;
+                        }
+                    } else if axis == 0 {
+                        dest_slice.fill(0 as $t);
+
+                        for i in 0..shape[0] {
+                            for j in 0..shape[1] {
+                                dest_slice[j] += a_slice[i * shape[1] + j];
+                            }
+                        }
+                    }
+                    else {
+                        return Err(TensorError::BackendFailure("Invalid axis for sum_axis".into()));
+                    }
+                }
+            }};
+        }
+
+        match dtype {
+            DType::Float32 => compute_sum_axis!(f32),
+            DType::Int32 => compute_sum_axis!(i32),
+            DType::Int16 => compute_sum_axis!(i16),
+        }
+        Ok(())
     }
 
     #[inline(always)]

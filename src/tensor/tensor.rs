@@ -135,14 +135,15 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
-        if axis < self.shape.len() {
+        if axis >= self.shape.len() {
             return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
         }
 
-        let result = B::allocate_empty(self.shape[axis], self.dtype)?;
+        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
+        let result = B::allocate_empty(dest_size, self.dtype)?;
         let mut result_tensor = Tensor {
             data: result,
-            shape: vec![self.shape[axis]],
+            shape: vec![dest_size],
             dtype: self.dtype,
         };
 
@@ -151,12 +152,13 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
-        if axis < self.shape.len() {
+        if axis >= self.shape.len() {
             return Err(TensorError::DimensionMismatch { expected: axis, got: self.shape.len() })
         }
-        if dest.shape != vec![self.shape[axis]] {
+        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
+        if dest.shape != vec![dest_size] {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![self.shape[axis]],
+                expected: vec![dest_size],
                 got: dest.shape.clone(),
             });
         }
@@ -166,7 +168,7 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        B::sum_axis_inplace(&self.data, &self.shape, &mut dest.data, self.dtype)?;
+        B::sum_axis_inplace(&self.data, &self.shape, &mut dest.data, self.dtype, axis)?;
         Ok(())
     }
 
