@@ -53,10 +53,10 @@ impl Backend for MetalBackend {
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+                .expect("Failed to create command buffer");
             let encoder = command_buffer
                 .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+                .expect("Failed to create compute encoder");
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "mat_mul_f32",
@@ -78,7 +78,7 @@ impl Backend for MetalBackend {
 
             encoder.setBytes_length_atIndex(
                 NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                    .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
+                    .expect("Invalid params pointer"),
                 std::mem::size_of::<MatMulParams>(),
                 3,
             );
@@ -121,10 +121,10 @@ impl Backend for MetalBackend {
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+                .expect("Failed to create command buffer");
             let compute_encoder = command_buffer
                 .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+                .expect("Failed to create compute encoder");
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "add_arrays_f32",
@@ -175,10 +175,10 @@ impl Backend for MetalBackend {
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+                .expect("Failed to create command buffer");
             let encoder = command_buffer
                 .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+                .expect("Failed to create compute encoder");
 
             let pipeline = ctx.get_pipeline(match dtype {
                 DType::Float32 => "transpose_f32",
@@ -197,7 +197,7 @@ impl Backend for MetalBackend {
 
             encoder.setBytes_length_atIndex(
                 NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                    .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?,
+                    .expect("Invalid params pointer"),
                 std::mem::size_of::<TransposeParams>(),
                 2,
             );
@@ -249,15 +249,15 @@ impl Backend for MetalBackend {
             };
 
             let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                .ok_or_else(|| TensorError::BackendFailure("Invalid params pointer".into()))?;
+                .expect("Invalid params pointer");
 
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+                .expect("Failed to create command buffer");
             let encoder = command_buffer
                 .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+                .expect("Failed to create compute encoder");
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
@@ -298,7 +298,7 @@ impl Backend for MetalBackend {
         Ok(ctx
             .device
             .newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared)
-            .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?)
+            .expect("Failed to allocate GPU buffer"))
     }
 
     #[inline]
@@ -310,7 +310,7 @@ impl Backend for MetalBackend {
             let buffer = ctx
                 .device
                 .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-                .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?;
+                .expect("Failed to allocate GPU buffer");
 
             let raw_ptr = buffer.contents().as_ptr().cast::<T>();
             let slice = std::slice::from_raw_parts_mut(raw_ptr, data.len());
@@ -353,11 +353,11 @@ impl MetalContext {
         let function = self
             .library
             .newFunctionWithName(&NSString::from_str(name))
-            .ok_or_else(|| TensorError::BackendFailure(format!("Shader function '{}' not found", name)))?;
+            .expect(&format!("Shader function '{}' not found", name));
         let pipeline = self
             .device
             .newComputePipelineStateWithFunction_error(&function)
-            .map_err(|_| TensorError::BackendFailure(format!("Failed to create pipeline for '{}'", name)))?;
+            .expect(&format!("Failed to create pipeline for '{}'", name));
 
         cache.insert(name.to_string(), pipeline.clone());
         Ok(pipeline)
