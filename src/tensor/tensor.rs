@@ -134,6 +134,50 @@ impl<B: Backend> Tensor<B> {
         Ok(result_tensor)
     }
 
+    pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
+        if axis >= self.shape.len() {
+            return Err(TensorError::DimensionMismatch {
+                expected: axis + 1,
+                got: self.shape.len(),
+            });
+        }
+
+        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
+        let result = B::allocate_empty(dest_size, self.dtype)?;
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: vec![dest_size],
+            dtype: self.dtype,
+        };
+
+        self.sum_axis_inplace(axis, &mut result_tensor)?;
+        Ok(result_tensor)
+    }
+
+    pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
+        if axis >= self.shape.len() {
+            return Err(TensorError::DimensionMismatch {
+                expected: axis + 1,
+                got: self.shape.len(),
+            });
+        }
+        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
+        if dest.shape != vec![dest_size] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![dest_size],
+                got: dest.shape.clone(),
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::sum_axis_inplace(&self.data, &self.shape, &mut dest.data, self.dtype, axis)?;
+        Ok(())
+    }
+
     pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
         if data.len() != shape.iter().product() {
             return Err(TensorError::DataLengthMismatch {
@@ -387,6 +431,67 @@ mod tests {
             let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
             let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 6], vec![3, 2]).unwrap();
             let result = a.transpose_inplace(&mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32,
+                },
+            );
+        }
+    }
+
+    mod sum_axis {
+        use super::*;
+
+        #[test]
+        fn test_axis_out_of_bounds() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let result = a.sum_axis(2);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 3, got: 2 },
+            );
+        }
+    }
+
+    mod sum_axis_inplace {
+        use super::*;
+
+        #[test]
+        fn test_axis_out_of_bounds() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 2], vec![2]).unwrap();
+            let result = a.sum_axis_inplace(2, &mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 3, got: 2 },
+            );
+        }
+
+        #[test]
+        fn test_dest_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], vec![4]).unwrap();
+            let result = a.sum_axis_inplace(0, &mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: vec![2],
+                    got: vec![4],
+                },
+            );
+        }
+
+        #[test]
+        fn test_dest_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 2], vec![2]).unwrap();
+            let result = a.sum_axis_inplace(0, &mut dest);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),

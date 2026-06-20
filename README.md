@@ -11,3 +11,4 @@ Rust tensor library playground - very rough/WIP
 | **Vector Addition** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
 | **Matrix Multiplication** (Linear, ReLU) | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
 | **Transpose** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
+| **2d Sum Axis (reduce)** | `f32`, `i32`, `i16` | :white_check_mark: | :white_check_mark: |
