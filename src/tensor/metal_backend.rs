@@ -58,11 +58,13 @@ impl Backend for MetalBackend {
                 .computeCommandEncoder()
                 .expect("Failed to create compute encoder");
 
-            let pipeline = ctx.get_pipeline(match dtype {
-                DType::Float32 => "mat_mul_f32",
-                DType::Int32 => "mat_mul_i32",
-                DType::Int16 => "mat_mul_i16",
-            }).expect(&format!("Failed to get pipeline for {:?}", dtype));
+            let pipeline = ctx
+                .get_pipeline(match dtype {
+                    DType::Float32 => "mat_mul_f32",
+                    DType::Int32 => "mat_mul_i32",
+                    DType::Int16 => "mat_mul_i16",
+                })
+                .expect(&format!("Failed to get pipeline for {:?}", dtype));
 
             let mut params = MatMulParams {
                 m: shape_a[0] as u32,
@@ -126,11 +128,13 @@ impl Backend for MetalBackend {
                 .computeCommandEncoder()
                 .expect("Failed to create compute encoder");
 
-            let pipeline = ctx.get_pipeline(match dtype {
-                DType::Float32 => "add_arrays_f32",
-                DType::Int32 => "add_arrays_i32",
-                DType::Int16 => "add_arrays_i16",
-            }).expect(&format!("Failed to get pipeline for {:?}", dtype));
+            let pipeline = ctx
+                .get_pipeline(match dtype {
+                    DType::Float32 => "add_arrays_f32",
+                    DType::Int32 => "add_arrays_i32",
+                    DType::Int16 => "add_arrays_i16",
+                })
+                .expect(&format!("Failed to get pipeline for {:?}", dtype));
 
             compute_encoder.setComputePipelineState(&pipeline);
 
@@ -181,11 +185,13 @@ impl Backend for MetalBackend {
                 .computeCommandEncoder()
                 .expect("Failed to create compute encoder");
 
-            let pipeline = ctx.get_pipeline(match dtype {
-                DType::Float32 => "transpose_f32",
-                DType::Int32 => "transpose_i32",
-                DType::Int16 => "transpose_i16",
-            }).expect(&format!("Failed to get pipeline for {:?}", dtype));
+            let pipeline = ctx
+                .get_pipeline(match dtype {
+                    DType::Float32 => "transpose_f32",
+                    DType::Int32 => "transpose_i32",
+                    DType::Int16 => "transpose_i16",
+                })
+                .expect(&format!("Failed to get pipeline for {:?}", dtype));
 
             let mut params = TransposeParams {
                 rows: shape[0] as u32,
@@ -237,11 +243,13 @@ impl Backend for MetalBackend {
         unsafe {
             let ctx = get_metal_context();
 
-            let pipeline = ctx.get_pipeline(match dtype {
-                DType::Float32 => "sum_axis_f32",
-                DType::Int32 => "sum_axis_i32",
-                DType::Int16 => "sum_axis_i16",
-            }).expect(&format!("Failed to get pipeline for {:?}", dtype));
+            let pipeline = ctx
+                .get_pipeline(match dtype {
+                    DType::Float32 => "sum_axis_f32",
+                    DType::Int32 => "sum_axis_i32",
+                    DType::Int16 => "sum_axis_i16",
+                })
+                .expect(&format!("Failed to get pipeline for {:?}", dtype));
 
             let mut params = SumAxisParams {
                 rows: shape[0] as u32,
