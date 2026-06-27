@@ -174,6 +174,60 @@ impl Backend for CPUBackend {
         Ok(())
     }
 
+    fn broadcast_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dest_shape: &[usize],
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError> {
+        assert!(shape.len() == 1, "Shape must be 1 for broadcast");
+        assert!(dest_shape.len() == 2, "Destination shape must be 2 for broadcast");
+        assert!(axis == 0 || axis == 1, "Axis must be 0 or 1 for broadcast");
+        assert!(
+            axis == 1 && shape[0] == dest_shape[0] || axis == 0 && shape[0] == dest_shape[1],
+            "Shape must match destination shape"
+        );
+        assert!(
+            dest.len() >= dest_shape.iter().product::<usize>() * dtype.byte_size(),
+            "Destination buffer too small for broadcast"
+        );
+
+        macro_rules! compute_broadcast {
+            ($t:ty) => {{
+                unsafe {
+                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), shape[0]);
+                    let dest_slice =
+                        std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), dest_shape.iter().product());
+
+                    if axis == 1 {
+                        for i in 0..shape[0] {
+                            for j in 0..dest_shape[1] {
+                                dest_slice[i * dest_shape[1] + j] = a_slice[i];
+                            }
+                        }
+                    } else if axis == 0 {
+                        for i in 0..dest_shape[0] {
+                            for j in 0..shape[0] {
+                                dest_slice[i * dest_shape[1] + j] = a_slice[j];
+                            }
+                        }
+                    } else {
+                        unreachable!("Invalid axis for sum_axis, should be validated upstream")
+                    }
+                }
+            }};
+        }
+
+        match dtype {
+            DType::Float32 => compute_broadcast!(f32),
+            DType::Int32 => compute_broadcast!(i32),
+            DType::Int16 => compute_broadcast!(i16),
+        }
+        Ok(())
+    }
+
     #[inline(always)]
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
         Ok(vec![0; size * dtype.byte_size()])

@@ -54,6 +54,16 @@ pub trait Backend: Sized {
         axis: usize,
     ) -> Result<(), TensorError>;
 
+    /// Performs broadcasting of the tensor to the destination shape
+    fn broadcast_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dest_shape: &[usize],
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError>;
+
     /// Allocates a new empty storage buffer of the given size and dtype.
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError>;
 

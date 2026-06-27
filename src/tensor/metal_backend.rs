@@ -36,6 +36,13 @@ struct SumAxisParams {
     axis: u32,
 }
 
+#[repr(C)]
+struct BroadcastParams {
+    rows: u32,
+    cols: u32,
+    axis: u32,
+}
+
 impl Backend for MetalBackend {
     type Storage = Retained<ProtocolObject<dyn MTLBuffer>>;
 
@@ -301,6 +308,79 @@ impl Backend for MetalBackend {
         Ok(())
     }
 
+    fn broadcast_inplace(
+        a: &Self::Storage,
+        shape: &[usize],
+        dest: &mut Self::Storage,
+        dest_shape: &[usize],
+        dtype: DType,
+        axis: usize,
+    ) -> Result<(), TensorError> {
+        assert!(shape.len() == 1, "Shape must be 1 for broadcast");
+        assert!(dest_shape.len() == 2, "Destination shape must be 2 for broadcast");
+        assert!(axis == 0 || axis == 1, "Axis must be 0 or 1 for broadcast");
+        assert!(
+            axis == 1 && shape[0] == dest_shape[0] || axis == 0 && shape[0] == dest_shape[1],
+            "Shape must match destination shape"
+        );
+
+        unsafe {
+            let ctx = get_metal_context()?;
+
+            let pipeline = ctx
+                .get_pipeline(match dtype {
+                    DType::Float32 => "broadcast_f32",
+                    DType::Int32 => "broadcast_i32",
+                    DType::Int16 => "broadcast_i16",
+                })
+                .expect(&format!("Failed to get pipeline for {:?}", dtype));
+
+            let mut params = BroadcastParams {
+                rows: dest_shape[0] as u32,
+                cols: dest_shape[1] as u32,
+                axis: axis as u32,
+            };
+
+            let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
+                .expect("Invalid params pointer");
+
+            let command_buffer = ctx
+                .command_queue
+                .commandBuffer()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+            let encoder = command_buffer
+                .computeCommandEncoder()
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+
+            encoder.setComputePipelineState(&pipeline);
+            encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
+            encoder.setBytes_length_atIndex(params_ptr, std::mem::size_of::<BroadcastParams>(), 2);
+
+            let threadgroup_size = MTLSize {
+                width: 16,
+                height: 16,
+                depth: 1,
+            };
+
+            let grid_width = (dest_shape[1] + 15) / 16;
+            let grid_height = (dest_shape[0] + 15) / 16;
+
+            let threadgroups_per_grid = MTLSize {
+                width: grid_width,
+                height: grid_height,
+                depth: 1,
+            };
+
+            encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
+            encoder.endEncoding();
+
+            command_buffer.commit();
+            command_buffer.waitUntilCompleted();
+        }
+        Ok(())
+    }
+
     #[inline]
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
         let ctx = get_metal_context()?;
@@ -394,6 +474,8 @@ fn get_metal_context() -> Result<&'static MetalContext, TensorError> {
         include_str!("../../src/shaders/transpose_func.metal"),
         "\n\n",
         include_str!("../../src/shaders/sum_axis_func.metal"),
+        "\n\n",
+        include_str!("../../src/shaders/broadcast_func.metal"),
     ));
 
     let library = device
