@@ -160,7 +160,7 @@ impl Backend for CPUBackend {
                             }
                         }
                     } else {
-                        return Err(TensorError::BackendFailure("Invalid axis for sum_axis".into()));
+                        unreachable!("Invalid axis for sum_axis, should be validated upstream")
                     }
                 }
             }};

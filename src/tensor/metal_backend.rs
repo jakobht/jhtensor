@@ -8,7 +8,7 @@ use objc2_metal::{
 use std::{
     collections::HashMap,
     ptr::NonNull,
-    sync::{OnceLock, RwLock},
+    sync::{Mutex, RwLock},
 };
 
 use crate::tensor::{Activation, Backend, DType, TensorError};
@@ -49,7 +49,7 @@ impl Backend for MetalBackend {
         activation: Activation,
     ) -> Result<(), TensorError> {
         unsafe {
-            let ctx = get_metal_context();
+            let ctx = get_metal_context()?;
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
@@ -117,7 +117,7 @@ impl Backend for MetalBackend {
         dtype: DType,
     ) -> Result<(), TensorError> {
         unsafe {
-            let ctx = get_metal_context();
+            let ctx = get_metal_context()?;
             let array_length = shape.iter().product();
 
             let command_buffer = ctx
@@ -176,7 +176,7 @@ impl Backend for MetalBackend {
         dtype: DType,
     ) -> Result<(), TensorError> {
         unsafe {
-            let ctx = get_metal_context();
+            let ctx = get_metal_context()?;
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
@@ -241,7 +241,7 @@ impl Backend for MetalBackend {
         axis: usize,
     ) -> Result<(), TensorError> {
         unsafe {
-            let ctx = get_metal_context();
+            let ctx = get_metal_context()?;
 
             let pipeline = ctx
                 .get_pipeline(match dtype {
@@ -263,10 +263,10 @@ impl Backend for MetalBackend {
             let command_buffer = ctx
                 .command_queue
                 .commandBuffer()
-                .expect("Failed to create command buffer");
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
             let encoder = command_buffer
                 .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
+                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
@@ -303,23 +303,23 @@ impl Backend for MetalBackend {
 
     #[inline]
     fn allocate_empty(size: usize, dtype: DType) -> Result<Self::Storage, TensorError> {
-        let ctx = get_metal_context();
+        let ctx = get_metal_context()?;
         Ok(ctx
             .device
             .newBufferWithLength_options(size * dtype.byte_size(), MTLResourceOptions::StorageModeShared)
-            .expect("Failed to allocate GPU buffer"))
+            .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?)
     }
 
     #[inline]
     fn from_slice<T: Copy>(data: &[T]) -> Result<Self::Storage, TensorError> {
         unsafe {
-            let ctx = get_metal_context();
+            let ctx = get_metal_context()?;
             let buffer_size = data.len() * std::mem::size_of::<T>();
 
             let buffer = ctx
                 .device
                 .newBufferWithLength_options(buffer_size, MTLResourceOptions::StorageModeShared)
-                .expect("Failed to allocate GPU buffer");
+                .ok_or_else(|| TensorError::BackendFailure("Failed to allocate GPU buffer".into()))?;
 
             let raw_ptr = buffer.contents().as_ptr().cast::<T>();
             let slice = std::slice::from_raw_parts_mut(raw_ptr, data.len());
@@ -374,33 +374,45 @@ impl MetalContext {
 }
 
 /// Fetches the GPU state, initializing all variations exactly once
-fn get_metal_context() -> &'static MetalContext {
-    static CONTEXT: OnceLock<MetalContext> = OnceLock::new();
+fn get_metal_context() -> Result<&'static MetalContext, TensorError> {
+    static CONTEXT: Mutex<Option<&'static MetalContext>> = Mutex::new(None);
 
-    CONTEXT.get_or_init(|| {
-        let device = MTLCreateSystemDefaultDevice().expect("No Metal device found");
+    let mut lock = CONTEXT.lock().expect("Failed to lock Metal context");
 
-        let source = NSString::from_str(concat!(
-            include_str!("../../src/shaders/mat_mul_func.metal"),
-            "\n\n",
-            include_str!("../../src/shaders/add_func.metal"),
-            "\n\n",
-            include_str!("../../src/shaders/transpose_func.metal"),
-            "\n\n",
-            include_str!("../../src/shaders/sum_axis_func.metal"),
-        ));
+    if let Some(metal_context) = *lock {
+        return Ok(metal_context);
+    }
 
-        let library = device
-            .newLibraryWithSource_options_error(&source, None)
-            .expect("Failed to compile Metal shader source at runtime");
+    let device =
+        MTLCreateSystemDefaultDevice().ok_or_else(|| TensorError::BackendFailure("No Metal device found".into()))?;
 
-        let command_queue = device.newCommandQueue().expect("Failed to create command queue");
+    let source = NSString::from_str(concat!(
+        include_str!("../../src/shaders/mat_mul_func.metal"),
+        "\n\n",
+        include_str!("../../src/shaders/add_func.metal"),
+        "\n\n",
+        include_str!("../../src/shaders/transpose_func.metal"),
+        "\n\n",
+        include_str!("../../src/shaders/sum_axis_func.metal"),
+    ));
 
-        MetalContext {
-            device,
-            command_queue,
-            library,
-            pipelines: RwLock::new(HashMap::new()),
-        }
-    })
+    let library = device
+        .newLibraryWithSource_options_error(&source, None)
+        .expect("Failed to compile Metal shader source at runtime");
+
+    let command_queue = device
+        .newCommandQueue()
+        .ok_or_else(|| TensorError::BackendFailure("Failed to create command queue".into()))?;
+
+    let metal_context = MetalContext {
+        device,
+        command_queue,
+        library,
+        pipelines: RwLock::new(HashMap::new()),
+    };
+
+    // It's fine to leak the box here because the context is static and will never be deallocated.
+    let metal_context = Box::leak(Box::new(metal_context));
+    *lock = Some(metal_context);
+    Ok(metal_context)
 }

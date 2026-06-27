@@ -135,6 +135,12 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
+        if self.shape.len() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: self.shape.len(),
+            });
+        }
         if axis >= self.shape.len() {
             return Err(TensorError::DimensionMismatch {
                 expected: axis + 1,
@@ -155,6 +161,12 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
+        if self.shape.len() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: self.shape.len(),
+            });
+        }
         if axis >= self.shape.len() {
             return Err(TensorError::DimensionMismatch {
                 expected: axis + 1,
@@ -446,6 +458,17 @@ mod tests {
         use super::*;
 
         #[test]
+        fn test_tensor_wrong_dimension() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let result = a.sum_axis(0);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 1 },
+            );
+        }
+
+        #[test]
         fn test_axis_out_of_bounds() {
             let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
             let result = a.sum_axis(2);
@@ -459,6 +482,18 @@ mod tests {
 
     mod sum_axis_inplace {
         use super::*;
+
+        #[test]
+        fn test_tensor_wrong_dimension() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
+            let result = a.sum_axis_inplace(0, &mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 1 },
+            );
+        }
 
         #[test]
         fn test_axis_out_of_bounds() {
