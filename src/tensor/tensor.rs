@@ -190,6 +190,69 @@ impl<B: Backend> Tensor<B> {
         Ok(())
     }
 
+    pub fn broadcast(&self, shape: Vec<usize>, axis: usize) -> Result<Self, TensorError> {
+        self.validate_broadcast_params(&shape, axis)?;
+
+        let dest_size = shape.iter().product();
+        let result = B::allocate_empty(dest_size, self.dtype)?;
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: shape,
+            dtype: self.dtype,
+        };
+
+        self.broadcast_inplace(axis, &mut result_tensor)?;
+
+        return Ok(result_tensor);
+    }
+
+    pub fn broadcast_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
+        if self.dtype != dest.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        self.validate_broadcast_params(&dest.shape, axis)?;
+
+        B::broadcast_inplace(&self.data, &self.shape, &mut dest.data, &dest.shape, self.dtype, axis)?;
+        Ok(())
+    }
+
+    fn validate_broadcast_params(&self, shape: &Vec<usize>, axis: usize) -> Result<(), TensorError> {
+        if self.shape.len() != 1 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 1,
+                got: self.shape.len(),
+            });
+        }
+        if shape.len() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: shape.len(),
+            });
+        }
+        if axis >= shape.len() {
+            return Err(TensorError::DimensionMismatch {
+                expected: shape.len(),
+                got: axis,
+            });
+        }
+        if axis == 0 && self.shape[0] != shape[1] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![shape[0], self.shape[0]],
+                got: shape.clone(),
+            });
+        }
+        if axis == 1 && self.shape[0] != shape[0] {
+            return Err(TensorError::ShapeMismatch {
+                expected: vec![self.shape[0], shape[1]],
+                got: shape.clone(),
+            });
+        }
+        Ok(())
+    }
+
     pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
         if data.len() != shape.iter().product() {
             return Err(TensorError::DataLengthMismatch {
@@ -533,6 +596,88 @@ mod tests {
                 TensorError::TypeMismatch {
                     expected: DType::Float32,
                     got: DType::Int32,
+                },
+            );
+        }
+    }
+
+    mod broadcast {
+        use super::*;
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 4], vec![2, 2]).unwrap();
+            let result = a.broadcast_inplace(0, &mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32,
+                },
+            );
+        }
+
+        #[test]
+        fn test_self_wrong_dimension() {
+            let a =
+                Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], vec![2, 5])
+                    .unwrap();
+            let result = a.broadcast(vec![5, 5], 0);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 1, got: 2 },
+            );
+        }
+
+        #[test]
+        fn test_shape_wrong_dimension() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let result = a.broadcast(vec![5, 5, 5], 0);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 3 },
+            );
+        }
+
+        #[test]
+        fn test_axis_out_of_bounds() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
+            let result = a.broadcast(vec![4, 4], 2);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 2 },
+            );
+        }
+
+        #[test]
+        fn test_shape_mismatch_axis_0() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
+            let result = a.broadcast(vec![5, 3], 0);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: vec![5, 4],
+                    got: vec![5, 3]
+                },
+            );
+        }
+
+        #[test]
+        fn test_shape_mismatch_axis_1() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
+            let result = a.broadcast(vec![5, 5], 1);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: vec![4, 5],
+                    got: vec![5, 5]
                 },
             );
         }
