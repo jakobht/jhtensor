@@ -487,6 +487,18 @@ mod tests {
         }
 
         #[test]
+        fn test_tensor_shape_mismatch_inplace() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], vec![2, 3]).unwrap();
+            let result = a.transpose_inplace(&mut dest);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::DimensionMismatch { expected: 2, got: 1 },
+            );
+        }
+
+        #[test]
         fn test_tensor_dest_shape_inline_mismatch() {
             let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
             let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], vec![2, 3]).unwrap();
