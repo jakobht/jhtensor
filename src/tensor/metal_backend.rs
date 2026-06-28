@@ -123,57 +123,7 @@ impl Backend for MetalBackend {
         shape: Shape,
         dtype: DType,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
-            let array_length = shape.product();
-
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .expect("Failed to create command buffer");
-            let compute_encoder = command_buffer
-                .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
-
-            let pipeline = ctx
-                .get_pipeline(match dtype {
-                    DType::Float32 => "add_arrays_f32",
-                    DType::Int32 => "add_arrays_i32",
-                    DType::Int16 => "add_arrays_i16",
-                })
-                .expect(&format!("Failed to get pipeline for {:?}", dtype));
-
-            compute_encoder.setComputePipelineState(&pipeline);
-
-            compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
-            compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-            compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
-
-            let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
-            let grid_width = if thread_execution_width > array_length {
-                array_length
-            } else {
-                thread_execution_width
-            };
-
-            let grid_size = MTLSize {
-                width: array_length,
-                height: 1,
-                depth: 1,
-            };
-            let threadgroup_size = MTLSize {
-                width: grid_width,
-                height: 1,
-                depth: 1,
-            };
-
-            compute_encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
-            compute_encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        dispatch_elementwise("add_arrays_", a, b, dest, shape, dtype)
     }
 
     fn mul_arrays_inplace(
@@ -183,57 +133,7 @@ impl Backend for MetalBackend {
         shape: Shape,
         dtype: DType,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
-            let array_length = shape.product();
-
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .expect("Failed to create command buffer");
-            let compute_encoder = command_buffer
-                .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
-
-            let pipeline = ctx
-                .get_pipeline(match dtype {
-                    DType::Float32 => "mul_arrays_f32",
-                    DType::Int32 => "mul_arrays_i32",
-                    DType::Int16 => "mul_arrays_i16",
-                })
-                .expect(&format!("Failed to get pipeline for {:?}", dtype));
-
-            compute_encoder.setComputePipelineState(&pipeline);
-
-            compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
-            compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-            compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
-
-            let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
-            let grid_width = if thread_execution_width > array_length {
-                array_length
-            } else {
-                thread_execution_width
-            };
-
-            let grid_size = MTLSize {
-                width: array_length,
-                height: 1,
-                depth: 1,
-            };
-            let threadgroup_size = MTLSize {
-                width: grid_width,
-                height: 1,
-                depth: 1,
-            };
-
-            compute_encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
-            compute_encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        dispatch_elementwise("mul_arrays_", a, b, dest, shape, dtype)
     }
 
     fn sub_arrays_inplace(
@@ -243,57 +143,7 @@ impl Backend for MetalBackend {
         shape: Shape,
         dtype: DType,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
-            let array_length = shape.product();
-
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .expect("Failed to create command buffer");
-            let compute_encoder = command_buffer
-                .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
-
-            let pipeline = ctx
-                .get_pipeline(match dtype {
-                    DType::Float32 => "sub_arrays_f32",
-                    DType::Int32 => "sub_arrays_i32",
-                    DType::Int16 => "sub_arrays_i16",
-                })
-                .expect(&format!("Failed to get pipeline for {:?}", dtype));
-
-            compute_encoder.setComputePipelineState(&pipeline);
-
-            compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
-            compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-            compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
-
-            let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
-            let grid_width = if thread_execution_width > array_length {
-                array_length
-            } else {
-                thread_execution_width
-            };
-
-            let grid_size = MTLSize {
-                width: array_length,
-                height: 1,
-                depth: 1,
-            };
-            let threadgroup_size = MTLSize {
-                width: grid_width,
-                height: 1,
-                depth: 1,
-            };
-
-            compute_encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
-            compute_encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        dispatch_elementwise("sub_arrays_", a, b, dest, shape, dtype)
     }
 
     fn transpose_inplace(
@@ -537,6 +387,69 @@ impl Backend for MetalBackend {
             Ok(slice.to_vec())
         }
     }
+}
+
+fn dispatch_elementwise(
+    prefix: &str,
+    a: &<MetalBackend as Backend>::Storage,
+    b: &<MetalBackend as Backend>::Storage,
+    dest: &mut <MetalBackend as Backend>::Storage,
+    shape: Shape,
+    dtype: DType,
+) -> Result<(), TensorError> {
+    unsafe {
+        let ctx = get_metal_context()?;
+        let array_length = shape.product();
+
+        let command_buffer = ctx
+            .command_queue
+            .commandBuffer()
+            .expect("Failed to create command buffer");
+        let compute_encoder = command_buffer
+            .computeCommandEncoder()
+            .expect("Failed to create compute encoder");
+
+        let pipeline_name = match dtype {
+            DType::Float32 => format!("{}f32", prefix),
+            DType::Int32 => format!("{}i32", prefix),
+            DType::Int16 => format!("{}i16", prefix),
+        };
+
+        let pipeline = ctx
+            .get_pipeline(&pipeline_name)
+            .expect(&format!("Failed to get pipeline for {:?}", dtype));
+
+        compute_encoder.setComputePipelineState(&pipeline);
+        compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+        compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
+        compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
+
+        let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
+        let grid_width = if thread_execution_width > array_length {
+            array_length
+        } else {
+            thread_execution_width
+        };
+
+        let grid_size = MTLSize {
+            width: array_length,
+            height: 1,
+            depth: 1,
+        };
+
+        let threadgroup_size = MTLSize {
+            width: grid_width,
+            height: 1,
+            depth: 1,
+        };
+
+        compute_encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
+        compute_encoder.endEncoding();
+
+        command_buffer.commit();
+        command_buffer.waitUntilCompleted();
+    }
+    Ok(())
 }
 
 /// Holds our heavy, reusable GPU states for all supported data types
