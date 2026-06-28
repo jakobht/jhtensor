@@ -14,6 +14,16 @@ impl DType {
             DType::Int16 => std::mem::size_of::<i16>(),
         }
     }
+
+    /// Returns a Metal pipeline name for the given operation prefix.
+    pub fn pipeline_name(&self, prefix: &str) -> String {
+        let suffix = match self {
+            DType::Float32 => "f32",
+            DType::Int32 => "i32",
+            DType::Int16 => "i16",
+        };
+        format!("{}_{}", prefix, suffix)
+    }
 }
 
 pub trait TensorDType: Copy + 'static {
