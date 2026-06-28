@@ -74,12 +74,7 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
-            encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                    .expect("Invalid params pointer"),
-                std::mem::size_of::<MatMulParams>(),
-                3,
-            );
+            set_params(encoder, &mut params, 3);
 
             let threadgroup_size = MTLSize {
                 width: 16,
@@ -152,12 +147,7 @@ impl Backend for MetalBackend {
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
 
-            encoder.setBytes_length_atIndex(
-                NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                    .expect("Invalid params pointer"),
-                std::mem::size_of::<TransposeParams>(),
-                2,
-            );
+            set_params(encoder, &mut params, 2);
 
             let threadgroup_size = MTLSize {
                 width: 16,
@@ -198,13 +188,10 @@ impl Backend for MetalBackend {
                 axis: axis as u32,
             };
 
-            let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                .expect("Invalid params pointer");
-
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
-            encoder.setBytes_length_atIndex(params_ptr, std::mem::size_of::<SumAxisParams>(), 2);
+            set_params(encoder, &mut params, 2);
 
             let dest_size = shape[if axis == 0 { 1 } else { 0 }];
 
@@ -258,13 +245,10 @@ impl Backend for MetalBackend {
                 axis: axis as u32,
             };
 
-            let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
-                .expect("Invalid params pointer");
-
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(dest), 0, 1);
-            encoder.setBytes_length_atIndex(params_ptr, std::mem::size_of::<BroadcastParams>(), 2);
+            set_params(encoder, &mut params, 2);
 
             let threadgroup_size = MTLSize {
                 width: 16,
@@ -321,6 +305,16 @@ impl Backend for MetalBackend {
             Ok(slice.to_vec())
         }
     }
+}
+
+#[allow(clippy::missing_safety_doc)]
+unsafe fn set_params<T: Sized>(encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>, params: &mut T, index: usize) {
+    encoder.setBytes_length_atIndex(
+        NonNull::new(std::ptr::from_mut(params).cast::<std::ffi::c_void>())
+            .expect("Invalid params pointer"),
+        std::mem::size_of::<T>(),
+        index,
+    );
 }
 
 fn with_compute_encoder<F>(ctx: &MetalContext, body: F) -> Result<(), TensorError>
