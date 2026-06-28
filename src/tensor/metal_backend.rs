@@ -55,16 +55,9 @@ impl Backend for MetalBackend {
         dtype: DType,
         activation: Activation,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .expect("Failed to create command buffer");
-            let encoder = command_buffer
-                .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
+        let ctx = get_metal_context()?;
 
+        with_compute_encoder(&ctx, |encoder| unsafe {
             let pipeline = ctx
                 .get_pipeline(&dtype.pipeline_name("mat_mul"))
                 .expect(&format!("Failed to get pipeline for {:?}", dtype));
@@ -104,12 +97,7 @@ impl Backend for MetalBackend {
             };
 
             encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
-            encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        })
     }
 
     fn add_arrays_inplace(
@@ -148,16 +136,9 @@ impl Backend for MetalBackend {
         dest: &mut Self::Storage,
         dtype: DType,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .expect("Failed to create command buffer");
-            let encoder = command_buffer
-                .computeCommandEncoder()
-                .expect("Failed to create compute encoder");
+        let ctx = get_metal_context()?;
 
+        with_compute_encoder(&ctx, |encoder| unsafe {
             let pipeline = ctx
                 .get_pipeline(&dtype.pipeline_name("transpose"))
                 .expect(&format!("Failed to get pipeline for {:?}", dtype));
@@ -194,12 +175,7 @@ impl Backend for MetalBackend {
             };
 
             encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
-            encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        })
     }
 
     fn sum_axis_inplace(
@@ -209,9 +185,9 @@ impl Backend for MetalBackend {
         dtype: DType,
         axis: usize,
     ) -> Result<(), TensorError> {
-        unsafe {
-            let ctx = get_metal_context()?;
+        let ctx = get_metal_context()?;
 
+        with_compute_encoder(&ctx, |encoder| unsafe {
             let pipeline = ctx
                 .get_pipeline(&dtype.pipeline_name("sum_axis"))
                 .expect(&format!("Failed to get pipeline for {:?}", dtype));
@@ -224,14 +200,6 @@ impl Backend for MetalBackend {
 
             let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
                 .expect("Invalid params pointer");
-
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
-            let encoder = command_buffer
-                .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
@@ -258,12 +226,7 @@ impl Backend for MetalBackend {
             };
 
             encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
-            encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        })
     }
 
     fn broadcast_inplace(
@@ -282,9 +245,9 @@ impl Backend for MetalBackend {
             "Shape must match destination shape"
         );
 
-        unsafe {
-            let ctx = get_metal_context()?;
+        let ctx = get_metal_context()?;
 
+        with_compute_encoder(&ctx, |encoder| unsafe {
             let pipeline = ctx
                 .get_pipeline(&dtype.pipeline_name("broadcast"))
                 .expect(&format!("Failed to get pipeline for {:?}", dtype));
@@ -297,14 +260,6 @@ impl Backend for MetalBackend {
 
             let params_ptr = NonNull::new(std::ptr::from_mut(&mut params).cast::<std::ffi::c_void>())
                 .expect("Invalid params pointer");
-
-            let command_buffer = ctx
-                .command_queue
-                .commandBuffer()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
-            let encoder = command_buffer
-                .computeCommandEncoder()
-                .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
 
             encoder.setComputePipelineState(&pipeline);
             encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
@@ -327,12 +282,7 @@ impl Backend for MetalBackend {
             };
 
             encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroups_per_grid, threadgroup_size);
-            encoder.endEncoding();
-
-            command_buffer.commit();
-            command_buffer.waitUntilCompleted();
-        }
-        Ok(())
+        })
     }
 
     #[inline]
@@ -373,6 +323,27 @@ impl Backend for MetalBackend {
     }
 }
 
+fn with_compute_encoder<F>(ctx: &MetalContext, body: F) -> Result<(), TensorError>
+where
+    F: FnOnce(&ProtocolObject<dyn MTLComputeCommandEncoder>),
+{
+    let command_buffer = ctx
+        .command_queue
+        .commandBuffer()
+        .ok_or_else(|| TensorError::BackendFailure("Failed to create command buffer".into()))?;
+
+    let encoder = command_buffer
+        .computeCommandEncoder()
+        .ok_or_else(|| TensorError::BackendFailure("Failed to create compute encoder".into()))?;
+
+    body(&encoder);
+    encoder.endEncoding();
+    command_buffer.commit();
+    command_buffer.waitUntilCompleted();
+
+    Ok(())
+}
+
 fn dispatch_elementwise(
     prefix: &str,
     a: &<MetalBackend as Backend>::Storage,
@@ -381,26 +352,18 @@ fn dispatch_elementwise(
     shape: Shape,
     dtype: DType,
 ) -> Result<(), TensorError> {
-    unsafe {
-        let ctx = get_metal_context()?;
-        let array_length = shape.product();
+    let ctx = get_metal_context()?;
+    let array_length = shape.product();
 
-        let command_buffer = ctx
-            .command_queue
-            .commandBuffer()
-            .expect("Failed to create command buffer");
-        let compute_encoder = command_buffer
-            .computeCommandEncoder()
-            .expect("Failed to create compute encoder");
-
+    with_compute_encoder(&ctx, |encoder| unsafe {
         let pipeline = ctx
             .get_pipeline(&dtype.pipeline_name(prefix))
             .expect(&format!("Failed to get pipeline for {:?}", dtype));
 
-        compute_encoder.setComputePipelineState(&pipeline);
-        compute_encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
-        compute_encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
-        compute_encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
+        encoder.setComputePipelineState(&pipeline);
+        encoder.setBuffer_offset_atIndex(Some(a), 0, 0);
+        encoder.setBuffer_offset_atIndex(Some(b), 0, 1);
+        encoder.setBuffer_offset_atIndex(Some(dest), 0, 2);
 
         let thread_execution_width = pipeline.maxTotalThreadsPerThreadgroup();
         let grid_width = if thread_execution_width > array_length {
@@ -421,13 +384,8 @@ fn dispatch_elementwise(
             depth: 1,
         };
 
-        compute_encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
-        compute_encoder.endEncoding();
-
-        command_buffer.commit();
-        command_buffer.waitUntilCompleted();
-    }
-    Ok(())
+        encoder.dispatchThreads_threadsPerThreadgroup(grid_size, threadgroup_size);
+    })
 }
 
 /// Holds our heavy, reusable GPU states for all supported data types
