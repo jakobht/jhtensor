@@ -20,11 +20,11 @@ macro_rules! test_fuzzy {
                 let matrix_data: Vec<$t> = (0..size_mat).map(|_| rng.random_range(-10..10) as $t).collect();
 
                 // Ground truth from CPU
-                let cpu_matrix = Tensor::<CPUBackend>::new::<$t>(&matrix_data, vec![m, n]).unwrap();
+                let cpu_matrix = Tensor::<CPUBackend>::new::<$t>(&matrix_data, [m, n]).unwrap();
                 let cpu_transposed = cpu_matrix.transpose().unwrap();
 
                 // Backend under test
-                let backend_matrix = Tensor::<$backend>::new::<$t>(&matrix_data, vec![m, n]).unwrap();
+                let backend_matrix = Tensor::<$backend>::new::<$t>(&matrix_data, [m, n]).unwrap();
                 let backend_transposed = backend_matrix.transpose().unwrap();
 
                 assert_eq!(

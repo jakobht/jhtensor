@@ -11,7 +11,7 @@ use std::{
     sync::{Mutex, RwLock},
 };
 
-use crate::tensor::{Activation, Backend, DType, TensorError};
+use crate::tensor::{Activation, Backend, DType, Shape, TensorError};
 
 pub struct MetalBackend;
 
@@ -48,9 +48,9 @@ impl Backend for MetalBackend {
 
     fn mat_mul_inplace(
         a: &Self::Storage,
-        shape_a: &[usize],
+        shape_a: Shape,
         b: &Self::Storage,
-        shape_b: &[usize],
+        shape_b: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
         activation: Activation,
@@ -120,12 +120,12 @@ impl Backend for MetalBackend {
         a: &Self::Storage,
         b: &Self::Storage,
         dest: &mut Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dtype: DType,
     ) -> Result<(), TensorError> {
         unsafe {
             let ctx = get_metal_context()?;
-            let array_length = shape.iter().product();
+            let array_length = shape.product();
 
             let command_buffer = ctx
                 .command_queue
@@ -178,7 +178,7 @@ impl Backend for MetalBackend {
 
     fn transpose_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
     ) -> Result<(), TensorError> {
@@ -242,7 +242,7 @@ impl Backend for MetalBackend {
 
     fn sum_axis_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
         axis: usize,
@@ -310,14 +310,14 @@ impl Backend for MetalBackend {
 
     fn broadcast_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
-        dest_shape: &[usize],
+        dest_shape: Shape,
         dtype: DType,
         axis: usize,
     ) -> Result<(), TensorError> {
-        assert!(shape.len() == 1, "Shape must be 1 for broadcast");
-        assert!(dest_shape.len() == 2, "Destination shape must be 2 for broadcast");
+        assert!(shape.ndim() == 1, "Shape must be 1 for broadcast");
+        assert!(dest_shape.ndim() == 2, "Destination shape must be 2 for broadcast");
         assert!(axis == 0 || axis == 1, "Axis must be 0 or 1 for broadcast");
         assert!(
             axis == 1 && shape[0] == dest_shape[0] || axis == 0 && shape[0] == dest_shape[1],

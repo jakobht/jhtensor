@@ -1,30 +1,30 @@
 use crate::tensor::tensor_error::TensorError;
-use crate::tensor::{Activation, Backend, DType, TensorDType};
+use crate::tensor::{Activation, Backend, DType, Shape, TensorDType};
 
 pub struct Tensor<B: Backend> {
     data: B::Storage,
-    shape: Vec<usize>,
+    shape: Shape,
     dtype: DType,
 }
 
 impl<B: Backend> Tensor<B> {
     pub fn mat_mul_inplace(&self, other: &Self, dest: &mut Self, activation: Activation) -> Result<(), TensorError> {
-        if self.shape.len() != 2 || other.shape.len() != 2 || dest.shape.len() != 2 {
+        if self.shape.ndim() != 2 || other.shape.ndim() != 2 || dest.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
         if self.shape[1] != other.shape[0] {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![self.shape[0], other.shape[1]],
-                got: vec![self.shape[0], self.shape[1]],
+                expected: Shape::new(&[self.shape[0], other.shape[1]]),
+                got: Shape::new(&[self.shape[0], self.shape[1]]),
             });
         }
-        if dest.shape != vec![self.shape[0], other.shape[1]] {
+        if dest.shape != Shape::new(&[self.shape[0], other.shape[1]]) {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![self.shape[0], other.shape[1]],
-                got: dest.shape.clone(),
+                expected: Shape::new(&[self.shape[0], other.shape[1]]),
+                got: dest.shape,
             });
         }
         if self.dtype != other.dtype {
@@ -41,9 +41,9 @@ impl<B: Backend> Tensor<B> {
         }
         B::mat_mul_inplace(
             &self.data,
-            &self.shape,
+            self.shape,
             &other.data,
-            &other.shape,
+            other.shape,
             &mut dest.data,
             self.dtype,
             activation,
@@ -54,14 +54,14 @@ impl<B: Backend> Tensor<B> {
     pub fn add_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
         if self.shape != other.shape {
             return Err(TensorError::ShapeMismatch {
-                expected: self.shape.clone(),
-                got: other.shape.clone(),
+                expected: self.shape,
+                got: other.shape,
             });
         }
         if dest.shape != self.shape {
             return Err(TensorError::ShapeMismatch {
-                expected: self.shape.clone(),
-                got: dest.shape.clone(),
+                expected: self.shape,
+                got: dest.shape,
             });
         }
         if self.dtype != other.dtype {
@@ -76,20 +76,20 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        B::add_arrays_inplace(&self.data, &other.data, &mut dest.data, &self.shape, self.dtype)?;
+        B::add_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
         Ok(())
     }
 
     pub fn transpose(&self) -> Result<Self, TensorError> {
-        if self.shape.len() != 2 {
+        if self.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
+        let result = B::allocate_empty(self.shape.product(), self.dtype)?;
 
-        let result_shape = vec![self.shape[1], self.shape[0]];
+        let result_shape = Shape::new(&[self.shape[1], self.shape[0]]);
 
         let mut result_tensor = Tensor {
             data: result,
@@ -101,16 +101,16 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn transpose_inplace(&self, dest: &mut Self) -> Result<(), TensorError> {
-        if self.shape.len() != 2 {
+        if self.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        if dest.shape != vec![self.shape[1], self.shape[0]] {
+        if dest.shape != Shape::new(&[self.shape[1], self.shape[0]]) {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![self.shape[1], self.shape[0]],
-                got: dest.shape.clone(),
+                expected: Shape::new(&[self.shape[1], self.shape[0]]),
+                got: dest.shape,
             });
         }
         if dest.dtype != self.dtype {
@@ -119,7 +119,7 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        B::transpose_inplace(&self.data, &self.shape, &mut dest.data, self.dtype)?;
+        B::transpose_inplace(&self.data, self.shape, &mut dest.data, self.dtype)?;
         Ok(())
     }
 
@@ -135,24 +135,24 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
-        if self.shape.len() != 2 {
+        if self.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        if axis >= self.shape.len() {
+        if axis >= self.shape.ndim() {
             return Err(TensorError::DimensionMismatch {
                 expected: axis + 1,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
 
-        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
+        let dest_size = self.shape.dim(if axis == 0 { 1 } else { 0 }).unwrap();
         let result = B::allocate_empty(dest_size, self.dtype)?;
         let mut result_tensor = Tensor {
             data: result,
-            shape: vec![dest_size],
+            shape: Shape::new(&[dest_size]),
             dtype: self.dtype,
         };
 
@@ -161,23 +161,23 @@ impl<B: Backend> Tensor<B> {
     }
 
     pub fn sum_axis_inplace(&self, axis: usize, dest: &mut Self) -> Result<(), TensorError> {
-        if self.shape.len() != 2 {
+        if self.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        if axis >= self.shape.len() {
+        if axis >= self.shape.ndim() {
             return Err(TensorError::DimensionMismatch {
                 expected: axis + 1,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        let dest_size = self.shape[if axis == 0 { 1 } else { 0 }];
-        if dest.shape != vec![dest_size] {
+        let dest_size = self.shape.dim(if axis == 0 { 1 } else { 0 }).unwrap();
+        if dest.shape != Shape::new(&[dest_size]) {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![dest_size],
-                got: dest.shape.clone(),
+                expected: Shape::new(&[dest_size]),
+                got: dest.shape,
             });
         }
         if dest.dtype != self.dtype {
@@ -186,14 +186,15 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        B::sum_axis_inplace(&self.data, &self.shape, &mut dest.data, self.dtype, axis)?;
+        B::sum_axis_inplace(&self.data, self.shape, &mut dest.data, self.dtype, axis)?;
         Ok(())
     }
 
-    pub fn broadcast(&self, shape: Vec<usize>, axis: usize) -> Result<Self, TensorError> {
-        self.validate_broadcast_params(&shape, axis)?;
+    pub fn broadcast(&self, shape: impl AsRef<[usize]>, axis: usize) -> Result<Self, TensorError> {
+        let shape = Shape::new(shape);
+        self.validate_broadcast_params(shape, axis)?;
 
-        let dest_size = shape.iter().product();
+        let dest_size = shape.product();
         let result = B::allocate_empty(dest_size, self.dtype)?;
         let mut result_tensor = Tensor {
             data: result,
@@ -213,57 +214,59 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
-        self.validate_broadcast_params(&dest.shape, axis)?;
+        self.validate_broadcast_params(dest.shape, axis)?;
 
-        B::broadcast_inplace(&self.data, &self.shape, &mut dest.data, &dest.shape, self.dtype, axis)?;
+        B::broadcast_inplace(&self.data, self.shape, &mut dest.data, dest.shape, self.dtype, axis)?;
         Ok(())
     }
 
-    fn validate_broadcast_params(&self, shape: &Vec<usize>, axis: usize) -> Result<(), TensorError> {
-        if self.shape.len() != 1 {
+    fn validate_broadcast_params(&self, shape: Shape, axis: usize) -> Result<(), TensorError> {
+        if self.shape.ndim() != 1 {
             return Err(TensorError::DimensionMismatch {
                 expected: 1,
-                got: self.shape.len(),
+                got: self.shape.ndim(),
             });
         }
-        if shape.len() != 2 {
+        if shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
-                got: shape.len(),
+                got: shape.ndim(),
             });
         }
-        if axis >= shape.len() {
+        if axis >= shape.ndim() {
             return Err(TensorError::DimensionMismatch {
-                expected: shape.len(),
+                expected: shape.ndim(),
                 got: axis,
             });
         }
         if axis == 0 && self.shape[0] != shape[1] {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![shape[0], self.shape[0]],
-                got: shape.clone(),
+                expected: Shape::new(&[shape[0], self.shape[0]]),
+                got: shape,
             });
         }
         if axis == 1 && self.shape[0] != shape[0] {
             return Err(TensorError::ShapeMismatch {
-                expected: vec![self.shape[0], shape[1]],
-                got: shape.clone(),
+                expected: Shape::new(&[self.shape[0], shape[1]]),
+                got: shape,
             });
         }
         Ok(())
     }
 
-    pub fn new<T: TensorDType>(data: &[T], shape: Vec<usize>) -> Result<Self, TensorError> {
-        if data.len() != shape.iter().product() {
+    pub fn new<T: TensorDType>(data: &[T], shape: impl AsRef<[usize]>) -> Result<Self, TensorError> {
+        let shape = Shape::new(shape);
+
+        if data.len() != shape.product() {
             return Err(TensorError::DataLengthMismatch {
-                expected_len: shape.iter().product::<usize>(),
+                expected_len: shape.product(),
                 got_len: data.len(),
             });
         }
 
         Ok(Tensor {
             data: B::from_slice(data)?,
-            shape,
+            shape: shape,
             dtype: T::dtype(),
         })
     }
@@ -278,8 +281,8 @@ impl<B: Backend> Tensor<B> {
         Ok(B::to_vec::<T>(&self.data, self.shape.iter().product())?)
     }
 
-    pub fn shape(&self) -> &[usize] {
-        &self.shape
+    pub fn shape(&self) -> Shape {
+        self.shape
     }
 }
 
@@ -289,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_tensor_new_shape_mismatch() {
-        let result = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![4]);
+        let result = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [4]);
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap(),
@@ -302,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_tensor_to_vec_type_mismatch() {
-        let tensor = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+        let tensor = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
         let result = tensor.to_vec::<i32>();
         assert!(result.is_err());
         assert_eq!(
@@ -315,13 +318,13 @@ mod tests {
     }
 
     mod mat_mul {
-        use crate::tensor::{Activation, DType, MetalBackend, Tensor, TensorError};
+        use crate::tensor::{Activation, DType, MetalBackend, Shape, Tensor, TensorError};
 
         #[test]
         fn test_tensor_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 25], vec![5, 5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5, 1]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 25], [5, 5]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest, Activation::None);
             assert!(result.is_err());
@@ -333,9 +336,9 @@ mod tests {
 
         #[test]
         fn test_dest_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1, 5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 25], vec![5, 5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5, 1]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [1, 5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 25], [5, 5]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest, Activation::None);
             assert!(result.is_err());
@@ -350,26 +353,26 @@ mod tests {
 
         #[test]
         fn test_dest_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![1, 5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 16], vec![4, 4]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5, 1]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [1, 5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 16], [4, 4]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest, Activation::None);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![5, 5],
-                    got: vec![4, 4]
+                    expected: Shape::new([5, 5]),
+                    got: Shape::new([4, 4])
                 }
             );
         }
 
         #[test]
         fn test_other_tensor_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], vec![1, 5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 25], vec![5, 5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5, 1]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], [1, 5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 25], [5, 5]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest, Activation::None);
             assert!(result.is_err());
@@ -384,45 +387,47 @@ mod tests {
 
         #[test]
         fn test_other_tensor_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5, 1]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 10], vec![2, 5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5, 1]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 10], [2, 5]).unwrap();
 
             let result = a.mat_mul_inplace(&b, &mut dest, Activation::None);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![2, 1],
-                    got: vec![2, 2]
+                    expected: Shape::new([2, 1]),
+                    got: Shape::new([2, 2])
                 }
             );
         }
     }
 
     mod add {
+        use crate::tensor::Shape;
+
         use super::*;
 
         #[test]
         fn test_tensor_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
 
             let result = a.add(&b);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![5],
-                    got: vec![4]
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
                 }
             );
         }
 
         #[test]
         fn test_tensor_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], vec![5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], [5]).unwrap();
 
             let result = a.add(&b);
             assert!(result.is_err());
@@ -437,29 +442,31 @@ mod tests {
     }
 
     mod add_inplace {
+        use crate::tensor::Shape;
+
         use super::*;
 
         #[test]
         fn test_dest_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], vec![4]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], [4]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
             assert_eq!(
                 result.unwrap_err(),
                 TensorError::ShapeMismatch {
-                    expected: vec![5],
-                    got: vec![4]
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
                 }
             );
         }
 
         #[test]
         fn test_dest_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], vec![5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], [5]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
             assert_eq!(
@@ -473,11 +480,13 @@ mod tests {
     }
 
     mod transpose {
+        use crate::tensor::Shape;
+
         use super::*;
 
         #[test]
         fn test_tensor_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
             let result = a.transpose();
             assert!(result.is_err());
             assert_eq!(
@@ -488,8 +497,8 @@ mod tests {
 
         #[test]
         fn test_tensor_shape_mismatch_inplace() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], vec![2, 3]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], [2, 3]).unwrap();
             let result = a.transpose_inplace(&mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -500,23 +509,23 @@ mod tests {
 
         #[test]
         fn test_tensor_dest_shape_inline_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], vec![2, 3]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 6], [2, 3]).unwrap();
             let result = a.transpose_inplace(&mut dest);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![3, 2],
-                    got: vec![2, 3],
+                    expected: Shape::new([3, 2]),
+                    got: Shape::new([2, 3]),
                 },
             );
         }
 
         #[test]
         fn test_tensor_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 6], vec![3, 2]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 6], [3, 2]).unwrap();
             let result = a.transpose_inplace(&mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -534,7 +543,7 @@ mod tests {
 
         #[test]
         fn test_tensor_wrong_dimension() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
             let result = a.sum_axis(0);
             assert!(result.is_err());
             assert_eq!(
@@ -545,7 +554,7 @@ mod tests {
 
         #[test]
         fn test_axis_out_of_bounds() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
             let result = a.sum_axis(2);
             assert!(result.is_err());
             assert_eq!(
@@ -556,12 +565,14 @@ mod tests {
     }
 
     mod sum_axis_inplace {
+        use crate::tensor::Shape;
+
         use super::*;
 
         #[test]
         fn test_tensor_wrong_dimension() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], vec![5]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 5], [5]).unwrap();
             let result = a.sum_axis_inplace(0, &mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -572,8 +583,8 @@ mod tests {
 
         #[test]
         fn test_axis_out_of_bounds() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 2], vec![2]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 2], [2]).unwrap();
             let result = a.sum_axis_inplace(2, &mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -584,23 +595,23 @@ mod tests {
 
         #[test]
         fn test_dest_shape_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], vec![4]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], [4]).unwrap();
             let result = a.sum_axis_inplace(0, &mut dest);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![2],
-                    got: vec![4],
+                    expected: Shape::new([2]),
+                    got: Shape::new([4]),
                 },
             );
         }
 
         #[test]
         fn test_dest_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 2], vec![2]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 2], [2]).unwrap();
             let result = a.sum_axis_inplace(0, &mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -614,12 +625,14 @@ mod tests {
     }
 
     mod broadcast {
+        use crate::tensor::Shape;
+
         use super::*;
 
         #[test]
         fn test_tensor_type_mismatch() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
-            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 4], vec![2, 2]).unwrap();
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [2, 2]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 4], [2, 2]).unwrap();
             let result = a.broadcast_inplace(0, &mut dest);
             assert!(result.is_err());
             assert_eq!(
@@ -633,10 +646,9 @@ mod tests {
 
         #[test]
         fn test_self_wrong_dimension() {
-            let a =
-                Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], vec![2, 5])
-                    .unwrap();
-            let result = a.broadcast(vec![5, 5], 0);
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], [2, 5])
+                .unwrap();
+            let result = a.broadcast([5, 5], 0);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
@@ -646,8 +658,8 @@ mod tests {
 
         #[test]
         fn test_shape_wrong_dimension() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-            let result = a.broadcast(vec![5, 5, 5], 0);
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let result = a.broadcast([5, 5, 5], 0);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
@@ -657,8 +669,8 @@ mod tests {
 
         #[test]
         fn test_axis_out_of_bounds() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
-            let result = a.broadcast(vec![4, 4], 2);
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
+            let result = a.broadcast([4, 4], 2);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
@@ -668,28 +680,28 @@ mod tests {
 
         #[test]
         fn test_shape_mismatch_axis_0() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
-            let result = a.broadcast(vec![5, 3], 0);
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
+            let result = a.broadcast([5, 3], 0);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![5, 4],
-                    got: vec![5, 3]
+                    expected: Shape::new([5, 4]),
+                    got: Shape::new([5, 3])
                 },
             );
         }
 
         #[test]
         fn test_shape_mismatch_axis_1() {
-            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], vec![4]).unwrap();
-            let result = a.broadcast(vec![5, 5], 1);
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
+            let result = a.broadcast([5, 5], 1);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),
                 TensorError::ShapeMismatch {
-                    expected: vec![4, 5],
-                    got: vec![5, 5]
+                    expected: Shape::new([4, 5]),
+                    got: Shape::new([5, 5])
                 },
             );
         }

@@ -28,15 +28,15 @@ macro_rules! test_fuzzy {
                 let b_data: Vec<$t> = (0..size_b).map(|_| rng.random_range(-10..10) as $t).collect();
 
                 // Ground truth from CPU
-                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, vec![m, k]).unwrap();
-                let cpu_b = Tensor::<CPUBackend>::new::<$t>(&b_data, vec![k, n]).unwrap();
-                let mut cpu_dest = Tensor::<CPUBackend>::new::<$t>(&vec![0 as $t; size_dest], vec![m, n]).unwrap();
+                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, [m, k]).unwrap();
+                let cpu_b = Tensor::<CPUBackend>::new::<$t>(&b_data, [k, n]).unwrap();
+                let mut cpu_dest = Tensor::<CPUBackend>::new::<$t>(&vec![0 as $t; size_dest], [m, n]).unwrap();
                 cpu_a.mat_mul_inplace(&cpu_b, &mut cpu_dest, $activation).unwrap();
 
                 // Backend under test
-                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, vec![m, k]).unwrap();
-                let metal_b = Tensor::<$backend>::new::<$t>(&b_data, vec![k, n]).unwrap();
-                let mut backend_dest = Tensor::<$backend>::new::<$t>(&vec![0 as $t; size_dest], vec![m, n]).unwrap();
+                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, [m, k]).unwrap();
+                let metal_b = Tensor::<$backend>::new::<$t>(&b_data, [k, n]).unwrap();
+                let mut backend_dest = Tensor::<$backend>::new::<$t>(&vec![0 as $t; size_dest], [m, n]).unwrap();
                 metal_a
                     .mat_mul_inplace(&metal_b, &mut backend_dest, $activation)
                     .unwrap();

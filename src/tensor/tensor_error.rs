@@ -1,8 +1,8 @@
-use crate::tensor::DType;
+use crate::tensor::{DType, Shape};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TensorError {
-    ShapeMismatch { expected: Vec<usize>, got: Vec<usize> },
+    ShapeMismatch { expected: Shape, got: Shape },
     TypeMismatch { expected: DType, got: DType },
     DataLengthMismatch { expected_len: usize, got_len: usize },
     DimensionMismatch { expected: usize, got: usize },
@@ -13,7 +13,7 @@ impl std::fmt::Display for TensorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TensorError::ShapeMismatch { expected, got } => {
-                write!(f, "Tensor shapes do not match: expected {:?}, got {:?}", expected, got)
+                write!(f, "Tensor shapes do not match: expected {}, got {}", expected, got)
             }
             TensorError::TypeMismatch { expected, got } => {
                 write!(f, "Tensor dtypes do not match: expected {:?}, got {:?}", expected, got)
@@ -54,8 +54,8 @@ mod tests {
     test_display!(
         test_shape_mismatch_display,
         TensorError::ShapeMismatch {
-            expected: vec![2, 3],
-            got: vec![2, 4]
+            expected: Shape::new(&[2, 3]),
+            got: Shape::new(&[2, 4])
         },
         "Tensor shapes do not match: expected [2, 3], got [2, 4]"
     );
