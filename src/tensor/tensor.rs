@@ -134,6 +134,86 @@ impl<B: Backend> Tensor<B> {
         Ok(result_tensor)
     }
 
+    pub fn mul_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch {
+                expected: self.shape,
+                got: other.shape,
+            });
+        }
+        if dest.shape != self.shape {
+            return Err(TensorError::ShapeMismatch {
+                expected: self.shape,
+                got: dest.shape,
+            });
+        }
+        if self.dtype != other.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: other.dtype,
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::mul_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
+        Ok(())
+    }
+
+    pub fn mul(&self, other: &Self) -> Result<Self, TensorError> {
+        let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: self.shape.clone(),
+            dtype: self.dtype,
+        };
+        self.mul_inplace(other, &mut result_tensor)?;
+        Ok(result_tensor)
+    }
+
+    pub fn sub_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch {
+                expected: self.shape,
+                got: other.shape,
+            });
+        }
+        if dest.shape != self.shape {
+            return Err(TensorError::ShapeMismatch {
+                expected: self.shape,
+                got: dest.shape,
+            });
+        }
+        if self.dtype != other.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: other.dtype,
+            });
+        }
+        if dest.dtype != self.dtype {
+            return Err(TensorError::TypeMismatch {
+                expected: self.dtype,
+                got: dest.dtype,
+            });
+        }
+        B::sub_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
+        Ok(())
+    }
+
+    pub fn sub(&self, other: &Self) -> Result<Self, TensorError> {
+        let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
+        let mut result_tensor = Tensor {
+            data: result,
+            shape: self.shape.clone(),
+            dtype: self.dtype,
+        };
+        self.sub_inplace(other, &mut result_tensor)?;
+        Ok(result_tensor)
+    }
+
     pub fn sum_axis(&self, axis: usize) -> Result<Self, TensorError> {
         if self.shape.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
@@ -469,6 +549,158 @@ mod tests {
             let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], [5]).unwrap();
 
             let result = a.add_inplace(&b, &mut dest);
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
+        }
+    }
+
+    mod mul {
+        use crate::tensor::Shape;
+
+        use super::*;
+
+        #[test]
+        fn test_tensor_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
+
+            let result = a.mul(&b);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
+                }
+            );
+        }
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], [5]).unwrap();
+
+            let result = a.mul(&b);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
+        }
+    }
+
+    mod mul_inplace {
+        use crate::tensor::Shape;
+
+        use super::*;
+
+        #[test]
+        fn test_dest_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], [4]).unwrap();
+
+            let result = a.mul_inplace(&b, &mut dest);
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::ShapeMismatch {
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
+                }
+            );
+        }
+
+        #[test]
+        fn test_dest_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], [5]).unwrap();
+
+            let result = a.mul_inplace(&b, &mut dest);
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
+        }
+    }
+
+    mod sub {
+        use crate::tensor::Shape;
+
+        use super::*;
+
+        #[test]
+        fn test_tensor_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0], [4]).unwrap();
+
+            let result = a.sub(&b);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::ShapeMismatch {
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
+                }
+            );
+        }
+
+        #[test]
+        fn test_tensor_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<i32>(&[1, 2, 3, 4, 5], [5]).unwrap();
+
+            let result = a.sub(&b);
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                TensorError::TypeMismatch {
+                    expected: DType::Float32,
+                    got: DType::Int32
+                }
+            );
+        }
+    }
+
+    mod sub_inplace {
+        use crate::tensor::Shape;
+
+        use super::*;
+
+        #[test]
+        fn test_dest_shape_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<f32>(&[0.0; 4], [4]).unwrap();
+
+            let result = a.sub_inplace(&b, &mut dest);
+            assert_eq!(
+                result.unwrap_err(),
+                TensorError::ShapeMismatch {
+                    expected: Shape::new([5]),
+                    got: Shape::new([4])
+                }
+            );
+        }
+
+        #[test]
+        fn test_dest_type_mismatch() {
+            let a = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let b = Tensor::<MetalBackend>::new::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], [5]).unwrap();
+            let mut dest = Tensor::<MetalBackend>::new::<i32>(&[0; 5], [5]).unwrap();
+
+            let result = a.sub_inplace(&b, &mut dest);
             assert_eq!(
                 result.unwrap_err(),
                 TensorError::TypeMismatch {
