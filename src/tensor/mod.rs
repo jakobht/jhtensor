@@ -39,6 +39,24 @@ pub trait Backend: Sized {
         dtype: DType,
     ) -> Result<(), TensorError>;
 
+    /// Performs element-wise multiplication in-place: dest = A * B
+    fn mul_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: Shape,
+        dtype: DType,
+    ) -> Result<(), TensorError>;
+
+    /// Performs element-wise subtraction in-place: dest = A - B
+    fn sub_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: Shape,
+        dtype: DType,
+    ) -> Result<(), TensorError>;
+
     /// Performs matrix transposition in-place: dest = A^T
     fn transpose_inplace(
         a: &Self::Storage,

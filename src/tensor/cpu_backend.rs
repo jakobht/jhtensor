@@ -89,6 +89,76 @@ impl Backend for CPUBackend {
         Ok(())
     }
 
+    fn mul_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: Shape,
+        dtype: DType,
+    ) -> Result<(), TensorError> {
+        let array_length = shape.product();
+        assert!(
+            dest.len() >= array_length * dtype.byte_size(),
+            "Destination buffer too small for multiplication"
+        );
+
+        macro_rules! compute_mul {
+            ($t:ty) => {{
+                unsafe {
+                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), array_length);
+                    let b_slice = std::slice::from_raw_parts(b.as_ptr().cast::<$t>(), array_length);
+                    let dest_slice = std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), array_length);
+
+                    for i in 0..array_length {
+                        dest_slice[i] = a_slice[i] * b_slice[i];
+                    }
+                }
+            }};
+        }
+
+        match dtype {
+            DType::Float32 => compute_mul!(f32),
+            DType::Int32 => compute_mul!(i32),
+            DType::Int16 => compute_mul!(i16),
+        }
+        Ok(())
+    }
+
+    fn sub_arrays_inplace(
+        a: &Self::Storage,
+        b: &Self::Storage,
+        dest: &mut Self::Storage,
+        shape: Shape,
+        dtype: DType,
+    ) -> Result<(), TensorError> {
+        let array_length = shape.product();
+        assert!(
+            dest.len() >= array_length * dtype.byte_size(),
+            "Destination buffer too small for subtraction"
+        );
+
+        macro_rules! compute_sub {
+            ($t:ty) => {{
+                unsafe {
+                    let a_slice = std::slice::from_raw_parts(a.as_ptr().cast::<$t>(), array_length);
+                    let b_slice = std::slice::from_raw_parts(b.as_ptr().cast::<$t>(), array_length);
+                    let dest_slice = std::slice::from_raw_parts_mut(dest.as_mut_ptr().cast::<$t>(), array_length);
+
+                    for i in 0..array_length {
+                        dest_slice[i] = a_slice[i] - b_slice[i];
+                    }
+                }
+            }};
+        }
+
+        match dtype {
+            DType::Float32 => compute_sub!(f32),
+            DType::Int32 => compute_sub!(i32),
+            DType::Int16 => compute_sub!(i16),
+        }
+        Ok(())
+    }
+
     fn transpose_inplace(
         a: &Self::Storage,
         shape: Shape,
