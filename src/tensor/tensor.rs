@@ -51,7 +51,7 @@ impl<B: Backend> Tensor<B> {
         Ok(())
     }
 
-    pub fn add_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+    fn validate_elementwise(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
         if self.shape != other.shape {
             return Err(TensorError::ShapeMismatch {
                 expected: self.shape,
@@ -76,6 +76,11 @@ impl<B: Backend> Tensor<B> {
                 got: dest.dtype,
             });
         }
+        Ok(())
+    }
+
+    pub fn add_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        self.validate_elementwise(other, dest)?;
         B::add_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
         Ok(())
     }
@@ -123,6 +128,18 @@ impl<B: Backend> Tensor<B> {
         Ok(())
     }
 
+    pub fn mul_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        self.validate_elementwise(other, dest)?;
+        B::mul_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
+        Ok(())
+    }
+
+    pub fn sub_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
+        self.validate_elementwise(other, dest)?;
+        B::sub_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
+        Ok(())
+    }
+
     pub fn add(&self, other: &Self) -> Result<Self, TensorError> {
         let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
         let mut result_tensor = Tensor {
@@ -134,35 +151,6 @@ impl<B: Backend> Tensor<B> {
         Ok(result_tensor)
     }
 
-    pub fn mul_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
-        if self.shape != other.shape {
-            return Err(TensorError::ShapeMismatch {
-                expected: self.shape,
-                got: other.shape,
-            });
-        }
-        if dest.shape != self.shape {
-            return Err(TensorError::ShapeMismatch {
-                expected: self.shape,
-                got: dest.shape,
-            });
-        }
-        if self.dtype != other.dtype {
-            return Err(TensorError::TypeMismatch {
-                expected: self.dtype,
-                got: other.dtype,
-            });
-        }
-        if dest.dtype != self.dtype {
-            return Err(TensorError::TypeMismatch {
-                expected: self.dtype,
-                got: dest.dtype,
-            });
-        }
-        B::mul_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
-        Ok(())
-    }
-
     pub fn mul(&self, other: &Self) -> Result<Self, TensorError> {
         let result = B::allocate_empty(self.shape.iter().product(), self.dtype)?;
         let mut result_tensor = Tensor {
@@ -172,35 +160,6 @@ impl<B: Backend> Tensor<B> {
         };
         self.mul_inplace(other, &mut result_tensor)?;
         Ok(result_tensor)
-    }
-
-    pub fn sub_inplace(&self, other: &Self, dest: &mut Self) -> Result<(), TensorError> {
-        if self.shape != other.shape {
-            return Err(TensorError::ShapeMismatch {
-                expected: self.shape,
-                got: other.shape,
-            });
-        }
-        if dest.shape != self.shape {
-            return Err(TensorError::ShapeMismatch {
-                expected: self.shape,
-                got: dest.shape,
-            });
-        }
-        if self.dtype != other.dtype {
-            return Err(TensorError::TypeMismatch {
-                expected: self.dtype,
-                got: other.dtype,
-            });
-        }
-        if dest.dtype != self.dtype {
-            return Err(TensorError::TypeMismatch {
-                expected: self.dtype,
-                got: dest.dtype,
-            });
-        }
-        B::sub_arrays_inplace(&self.data, &other.data, &mut dest.data, self.shape, self.dtype)?;
-        Ok(())
     }
 
     pub fn sub(&self, other: &Self) -> Result<Self, TensorError> {
