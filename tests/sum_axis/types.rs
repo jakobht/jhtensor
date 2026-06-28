@@ -1,4 +1,4 @@
-use jhtensor::tensor::{CPUBackend, MetalBackend, Tensor};
+use jhtensor::tensor::{CPUBackend, MetalBackend, Shape, Tensor};
 
 macro_rules! test_sum_axis_for {
     ($backend:ident, $t:ident) => {
@@ -7,31 +7,25 @@ macro_rules! test_sum_axis_for {
 
             #[test]
             fn test_sum_axis_0() {
-                let a = Tensor::<$backend>::new::<$t>(
-                    &[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t],
-                    vec![2, 3],
-                )
-                .unwrap();
+                let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t], [2, 3])
+                    .unwrap();
 
                 let result = a.sum_axis(0).unwrap();
                 let result_vec = result.to_vec::<$t>().unwrap();
 
-                assert_eq!(result.shape(), vec![3]);
+                assert_eq!(result.shape(), Shape::new([3]));
                 assert_eq!(result_vec, vec![5 as $t, 7 as $t, 9 as $t]);
             }
 
             #[test]
             fn test_sum_axis_1() {
-                let a = Tensor::<$backend>::new::<$t>(
-                    &[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t],
-                    vec![2, 3],
-                )
-                .unwrap();
+                let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t, 6 as $t], [2, 3])
+                    .unwrap();
 
                 let result = a.sum_axis(1).unwrap();
                 let result_vec = result.to_vec::<$t>().unwrap();
 
-                assert_eq!(result.shape(), vec![2]);
+                assert_eq!(result.shape(), Shape::new([2]));
                 assert_eq!(result_vec, vec![6 as $t, 15 as $t]);
             }
         }

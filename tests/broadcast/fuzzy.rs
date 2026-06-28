@@ -2,7 +2,7 @@
 macro_rules! test_fuzzy {
     ($backend:ident, $t:ident) => {
         mod $t {
-            use jhtensor::tensor::{CPUBackend, Tensor};
+            use jhtensor::tensor::{CPUBackend, Shape, Tensor};
             use rand::{RngExt, SeedableRng};
             use rand_chacha::ChaCha8Rng;
 
@@ -16,21 +16,22 @@ macro_rules! test_fuzzy {
 
                 let size_a = m;
 
-                let dest_shape = if axis == 0 { vec![n, m] } else { vec![m, n] };
+                let dest_shape = if axis == 0 { [n, m] } else { [m, n] };
+                let dest_shape = Shape::new(dest_shape);
 
                 // Fill vectors with dynamic data
                 let a_data: Vec<$t> = (0..size_a).map(|_| rng.random_range(-10..10) as $t).collect();
 
                 // Ground truth from CPU
-                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, vec![size_a]).unwrap();
-                let cpu_result = cpu_a.broadcast(dest_shape.clone(), axis).unwrap();
+                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, [size_a]).unwrap();
+                let cpu_result = cpu_a.broadcast(dest_shape, axis).unwrap();
 
                 // Backend under test
-                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, vec![size_a]).unwrap();
-                let metal_result = metal_a.broadcast(dest_shape.clone(), axis).unwrap();
+                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, [size_a]).unwrap();
+                let metal_result = metal_a.broadcast(dest_shape, axis).unwrap();
 
-                assert_eq!(cpu_result.shape(), dest_shape.clone());
-                assert_eq!(metal_result.shape(), dest_shape.clone());
+                assert_eq!(cpu_result.shape(), dest_shape);
+                assert_eq!(metal_result.shape(), dest_shape);
 
                 assert_eq!(
                     metal_result.to_vec::<$t>().unwrap(),

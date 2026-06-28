@@ -2,7 +2,7 @@
 macro_rules! test_fuzzy {
     ($backend:ident, $t:ident) => {
         mod $t {
-            use jhtensor::tensor::{CPUBackend, Tensor};
+            use jhtensor::tensor::{CPUBackend, Shape, Tensor};
             use rand::{RngExt, SeedableRng};
             use rand_chacha::ChaCha8Rng;
 
@@ -21,15 +21,15 @@ macro_rules! test_fuzzy {
                 let a_data: Vec<$t> = (0..size_a).map(|_| rng.random_range(-10..10) as $t).collect();
 
                 // Ground truth from CPU
-                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, vec![m, n]).unwrap();
+                let cpu_a = Tensor::<CPUBackend>::new::<$t>(&a_data, [m, n]).unwrap();
                 let cpu_result = cpu_a.sum_axis(axis).unwrap();
 
                 // Backend under test
-                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, vec![m, n]).unwrap();
+                let metal_a = Tensor::<$backend>::new::<$t>(&a_data, [m, n]).unwrap();
                 let metal_result = metal_a.sum_axis(axis).unwrap();
 
-                assert_eq!(cpu_result.shape(), vec![size_dest]);
-                assert_eq!(metal_result.shape(), vec![size_dest]);
+                assert_eq!(cpu_result.shape(), Shape::new([size_dest]));
+                assert_eq!(metal_result.shape(), Shape::new([size_dest]));
 
                 assert_eq!(
                     metal_result.to_vec::<$t>().unwrap(),

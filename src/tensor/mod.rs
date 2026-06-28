@@ -2,6 +2,7 @@ mod cpu_backend;
 mod dtype;
 mod metal_backend;
 mod opts;
+mod shape;
 mod tensor;
 mod tensor_error;
 
@@ -9,6 +10,7 @@ pub use cpu_backend::CPUBackend;
 pub use dtype::{DType, TensorDType};
 pub use metal_backend::MetalBackend;
 pub use opts::Activation;
+pub use shape::Shape;
 pub use tensor::Tensor;
 pub use tensor_error::TensorError;
 
@@ -20,9 +22,9 @@ pub trait Backend: Sized {
     /// Performs matrix multiplication in-place: dest = A * B + activation
     fn mat_mul_inplace(
         a: &Self::Storage,
-        shape_a: &[usize],
+        shape_a: Shape,
         b: &Self::Storage,
-        shape_b: &[usize],
+        shape_b: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
         activation: Activation,
@@ -33,14 +35,14 @@ pub trait Backend: Sized {
         a: &Self::Storage,
         b: &Self::Storage,
         dest: &mut Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dtype: DType,
     ) -> Result<(), TensorError>;
 
     /// Performs matrix transposition in-place: dest = A^T
     fn transpose_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
     ) -> Result<(), TensorError>;
@@ -48,7 +50,7 @@ pub trait Backend: Sized {
     /// Performs sum reduction over the axis
     fn sum_axis_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
         dtype: DType,
         axis: usize,
@@ -57,9 +59,9 @@ pub trait Backend: Sized {
     /// Performs broadcasting of the tensor to the destination shape
     fn broadcast_inplace(
         a: &Self::Storage,
-        shape: &[usize],
+        shape: Shape,
         dest: &mut Self::Storage,
-        dest_shape: &[usize],
+        dest_shape: Shape,
         dtype: DType,
         axis: usize,
     ) -> Result<(), TensorError>;

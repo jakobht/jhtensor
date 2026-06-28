@@ -7,8 +7,8 @@ macro_rules! test_add_for {
 
             #[test]
             fn small() {
-                let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5]).unwrap();
-                let b = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], vec![5]).unwrap();
+                let a = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], [5]).unwrap();
+                let b = Tensor::<$backend>::new::<$t>(&[1 as $t, 2 as $t, 3 as $t, 4 as $t, 5 as $t], [5]).unwrap();
 
                 let result = a.add(&b).unwrap();
                 let result_vec = result.to_vec::<$t>().unwrap();
@@ -18,8 +18,8 @@ macro_rules! test_add_for {
 
             #[test]
             fn large() {
-                let a = Tensor::<$backend>::new::<$t>(&[1 as $t; 2024], vec![2024]).unwrap();
-                let b = Tensor::<$backend>::new::<$t>(&[1 as $t; 2024], vec![2024]).unwrap();
+                let a = Tensor::<$backend>::new::<$t>(&[1 as $t; 2024], [2024]).unwrap();
+                let b = Tensor::<$backend>::new::<$t>(&[1 as $t; 2024], [2024]).unwrap();
 
                 let result = a.add(&b).unwrap();
                 let result_vec = result.to_vec::<$t>().unwrap();
